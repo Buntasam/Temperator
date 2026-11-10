@@ -67,7 +67,7 @@ public partial class WelcomeWindow : Window
         CardLite.MouseLeftButtonDown += (_, e) => { if (e.ClickCount == 2) Done(); };
         CardFull.MouseLeftButtonDown += (_, e) => { if (e.ClickCount == 2) Done(); };
         BtnContinue.Click += (_, _) => Done();
-        CloseX.MouseLeftButtonUp += (_, _) => Done();   // fermer = garder le choix sélectionné
+        CloseX.MouseLeftButtonDown += (_, e) => { e.Handled = true; Done(); };   // fermer = garder le choix sélectionné
         Frame.MouseLeftButtonDown += (_, e) => { if (e.OriginalSource == Frame) try { DragMove(); } catch (InvalidOperationException) { } };
         PreviewKeyDown += (_, e) =>
         {

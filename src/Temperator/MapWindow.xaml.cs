@@ -29,7 +29,8 @@ public partial class MapWindow : Window
         Machine.Text = Fmt.MachineLine();
         HistoryHost.Content = HistoryCard();
         TitleBar.MouseLeftButtonDown += (_, _) => { try { DragMove(); } catch (InvalidOperationException) { } };
-        CloseX.MouseLeftButtonUp += (_, _) => Close();
+        // MouseDown (pas MouseUp) : sinon le déplacement de la fenêtre (DragMove sur la barre de titre) avale le clic
+        CloseX.MouseLeftButtonDown += (_, e) => { e.Handled = true; Close(); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
         Refresh();
     }

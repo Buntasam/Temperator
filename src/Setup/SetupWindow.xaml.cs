@@ -63,7 +63,8 @@ namespace TemperatorSetup
             RowLaunch.MouseLeftButtonUp += (_, _) => OptLaunch.IsChecked = OptLaunch.IsChecked != true;
 
             Card.MouseLeftButtonDown += (_, _) => { try { DragMove(); } catch (InvalidOperationException) { } };
-            CloseX.MouseLeftButtonUp += (_, _) => { if (!busy) Close(); };
+            // MouseDown (pas MouseUp) : sinon le déplacement de la fenêtre (DragMove) avale le clic
+            CloseX.MouseLeftButtonDown += (_, e) => { e.Handled = true; if (!busy) Close(); };
             Closing += (_, e) => { if (busy) e.Cancel = true; };
             BtnCancel.Click += (_, _) => Close();
             BtnGoUninstall.Click += (_, _) => ShowUninstallConfirm();
