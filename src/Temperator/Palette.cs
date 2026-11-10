@@ -26,7 +26,16 @@ sealed class Palette
     static readonly Set Light = new(C("#11151B"), C("#28303A"), C("#475060"), C("#2B000000"), C("#38000000"),
                                     C("#07826B"), C("#AD5C00"), C("#CC1F27"), C("#FFFFFF"));
 
+    Color accent = C("#4ED8C0");
+
     public Palette() => Use(false, false);
+
+    /// <summary>Couleur d'accent choisie (la version pour fond clair est assombrie automatiquement).</summary>
+    public void SetAccent(Color c)
+    {
+        accent = c;
+        To(Accent, IsLight ? Mix(c, Colors.Black, 0.42) : c, false);
+    }
 
     public void Use(bool light, bool animate)
     {
@@ -35,7 +44,12 @@ sealed class Palette
         Halo = s.Halo;
         To(Text, s.Text, animate); To(Soft, s.Soft, animate); To(Muted, s.Muted, animate);
         To(Track, s.Track, animate); To(Line, s.Line, animate);
-        To(Accent, s.Accent, animate); To(Warn, s.Warn, animate); To(Hot, s.Hot, animate);
+        To(Accent, light ? Mix(accent, Colors.Black, 0.42) : accent, animate); To(Warn, s.Warn, animate); To(Hot, s.Hot, animate);
+    }
+
+    public static Color Parse(string hex)
+    {
+        try { return C(hex); } catch { return C("#4ED8C0"); }
     }
 
     public void SetTint(Color c, bool animate) => To(Tint, c, animate);

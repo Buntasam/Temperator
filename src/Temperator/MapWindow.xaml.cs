@@ -17,10 +17,15 @@ public partial class MapWindow : Window
     List<HardwareVM> items = new();
     int signature = -1;
 
+    TimeSpan span = History.Keep;
+
     public MapWindow(App app)
     {
         this.app = app;
         InitializeComponent();
+        Title = L.T("Plan du PC – Temperator", "PC map – Temperator");
+        Heading.Text = L.T("Plan du PC", "PC map");
+        Empty.Text = L.T("Lecture des capteurs…", "Reading sensors…");
         Machine.Text = Fmt.MachineLine();
         HistoryHost.Content = HistoryCard();
         TitleBar.MouseLeftButtonDown += (_, _) => { try { DragMove(); } catch (InvalidOperationException) { } };
@@ -29,32 +34,62 @@ public partial class MapWindow : Window
         Refresh();
     }
 
-    /// <summary>Carte « Historique » : températures et utilisation des 10 dernières minutes.</summary>
+    /// <summary>Change la durée affichée par l'historique (10 min, 1 h ou 24 h).</summary>
+    public void ShowSpan(TimeSpan value)
+    {
+        span = value;
+        HistoryHost.Content = HistoryCard();
+    }
+
+    /// <summary>Carte « Historique » : températures et utilisation, sur 10 minutes (détail) ou 1 h / 24 h (moyennes de 30 s).</summary>
     UIElement HistoryCard()
     {
         var h = app.History;
-        var span = History.Keep;
+        var m = span <= History.Keep ? h.Fine : h.Coarse;
         bool F() => app.Settings.Fahrenheit;
         string Deg(double v) => Fmt.Temp((float)v, F()).ToString("0", Fmt.Fr) + "°";
         Brush cpuB = Theme.Accent, gpuB = Brush("#7AA2FF"), thirdB = Brush("#FFB547");
+        string diskName = L.T("Disque", "Drive");
 
         var panel = new StackPanel();
         var head = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
+
+        // durée : 10 min · 1 h · 24 h
+        var spans = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(-6, 10, 0, 2) };
+        foreach (var (label, value) in new[] { ("10 min", History.Keep), (L.T("1 h", "1 h"), TimeSpan.FromHours(1)), (L.T("24 h", "24 h"), History.LongKeep) })
+        {
+            var pill = new RadioButton { Style = (Style)FindResource("Pill"), GroupName = "span", Content = label, IsChecked = value == span, Margin = new Thickness(6, 0, 0, 0) };
+            pill.Click += (_, _) => ShowSpan(value);
+            spans.Children.Add(pill);
+        }
+        var export = new Button { Style = (Style)FindResource("ActionButton"), Content = L.T("Exporter CSV…", "Export CSV…"), Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        export.Click += (_, _) => app.ExportHistory(this);
+        spans.Children.Add(export);
+
         head.Children.Add(new Border
         {
             CornerRadius = new CornerRadius(6), Padding = new Thickness(7, 1, 7, 2), VerticalAlignment = VerticalAlignment.Center,
             Background = Brush("#224ED8C0"), BorderBrush = Brush("#554ED8C0"), BorderThickness = new Thickness(1),
-            Child = new TextBlock { Text = "HISTORIQUE", FontFamily = Theme.TitleFont, FontSize = 10.5, FontWeight = FontWeights.Bold, Foreground = Theme.Accent },
+            Child = new TextBlock { Text = L.T("HISTORIQUE", "HISTORY"), FontFamily = Theme.TitleFont, FontSize = 10.5, FontWeight = FontWeights.Bold, Foreground = Theme.Accent },
         });
-        head.Children.Add(new TextBlock { Text = "10 dernières minutes", Margin = new Thickness(10, 0, 0, 0), FontSize = 14.5, FontWeight = FontWeights.SemiBold, Foreground = Theme.Text, VerticalAlignment = VerticalAlignment.Center });
+        string title = span <= History.Keep ? L.T("10 dernières minutes", "Last 10 minutes")
+                     : span <= TimeSpan.FromHours(1) ? L.T("Dernière heure", "Last hour") : L.T("Dernières 24 heures", "Last 24 hours");
+        head.Children.Add(new TextBlock { Text = title, Margin = new Thickness(10, 0, 0, 0), FontSize = 14.5, FontWeight = FontWeights.SemiBold, Foreground = Theme.Text, VerticalAlignment = VerticalAlignment.Center });
         panel.Children.Add(head);
+        panel.Children.Add(spans);
 
-        panel.Children.Add(Section("TEMPÉRATURES", (cpuB, "CPU"), (gpuB, "GPU"), (thirdB, "Disque")));
+        panel.Children.Add(Section(L.T("TEMPÉRATURES", "TEMPERATURES"), (cpuB, "CPU"), (gpuB, "GPU"), (thirdB, diskName)));
         panel.Children.Add(new HistoryChart(h, span, 20, 90, Deg, null,
-            new ChartLine(h.CpuTemp, cpuB, "CPU"), new ChartLine(h.GpuTemp, gpuB, "GPU"), new ChartLine(h.DiskTemp, thirdB, "Disque")) { Height = 120 });
-        panel.Children.Add(Section("UTILISATION", (cpuB, "CPU"), (gpuB, "GPU"), (thirdB, "RAM")));
+            new ChartLine(m.CpuTemp, cpuB, "CPU"), new ChartLine(m.GpuTemp, gpuB, "GPU"), new ChartLine(m.DiskTemp, thirdB, diskName)) { Height = 120 });
+        panel.Children.Add(Section(L.T("UTILISATION", "LOAD"), (cpuB, "CPU"), (gpuB, "GPU"), (thirdB, "RAM")));
         panel.Children.Add(new HistoryChart(h, span, 0, 100, v => $"{v:0}%", null,
-            new ChartLine(h.CpuLoad, cpuB, "CPU"), new ChartLine(h.GpuLoad, gpuB, "GPU"), new ChartLine(h.RamLoad, thirdB, "RAM")) { Height = 90 });
+            new ChartLine(m.CpuLoad, cpuB, "CPU"), new ChartLine(m.GpuLoad, gpuB, "GPU"), new ChartLine(m.RamLoad, thirdB, "RAM")) { Height = 90 });
+        if (span > History.Keep)
+            panel.Children.Add(new TextBlock
+            {
+                Text = L.T("Moyennes de 30 secondes, conservées même après un redémarrage.", "30-second averages, kept across restarts."),
+                FontSize = 11, Foreground = Theme.Muted, Margin = new Thickness(0, 6, 0, 0),
+            });
 
         return new Border
         {

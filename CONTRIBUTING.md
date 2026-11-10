@@ -4,12 +4,11 @@ Merci de vouloir améliorer Temperator ! Les contributions se font **uniquement 
 
 ## Signaler un problème ou proposer une idée
 
-Ouvre une [issue](https://github.com/Buntasam/Temperator/issues) et indique :
+Ouvre une [issue](https://github.com/Buntasam/Temperator/issues) et indique ce qui se passe, et ce que tu attendais.
 
-- ce qui se passe, et ce que tu attendais ;
-- ta version de Temperator (clic droit sur le widget → *Mises à jour*) et de Windows ;
-- ton processeur et ta carte graphique, si ça concerne une température ;
-- le contenu de `%ProgramData%\Temperator\erreurs.log`, s'il existe.
+Ajoute le **rapport de diagnostic** : en mode complet, *Réglages → Général → Rapport de diagnostic → Copier*, puis colle-le
+dans l'issue. Il contient la version, Windows, le matériel détecté, les valeurs lues, les réglages et les dernières erreurs.
+(En mode simple : clic droit → *Mode complet*, puis la même chose.)
 
 ## Proposer du code
 

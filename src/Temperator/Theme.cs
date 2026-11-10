@@ -32,14 +32,19 @@ static class Theme
         celsius is not float c ? Muted : c >= hot ? Hot : c >= warn ? Warn : Accent;
 }
 
-/// <summary>Mise en forme des valeurs, en français.</summary>
+/// <summary>Mise en forme des valeurs, dans la langue de l'interface.</summary>
 static class Fmt
 {
-    public static readonly CultureInfo Fr = CultureInfo.GetCultureInfo("fr-FR");
+    /// <summary>Culture des nombres (fr-FR ou en-US, selon la langue).</summary>
+    public static CultureInfo Fr => L.Culture;
 
     public static float Temp(float celsius, bool fahrenheit) => fahrenheit ? celsius * 9 / 5 + 32 : celsius;
 
     static string N(float x, int decimals) => x.ToString("N" + decimals, Fr);
+
+    public static string GB => L.T("Go", "GB");
+    public static string MB => L.T("Mo", "MB");
+    public static string Rpm => L.T("tr/min", "RPM");
 
     // les types sont comparés par leur nom : le code reste valable si LibreHardwareMonitor en ajoute ou en retire
     public static string Value(string type, float? value, bool fahrenheit)
@@ -54,10 +59,10 @@ static class Fmt
             "Power" => $"{N(x, 1)} W",
             "Voltage" => $"{N(x, 3)} V",
             "Current" => $"{N(x, 2)} A",
-            "Fan" => $"{N(x, 0)} tr/min",
+            "Fan" => $"{N(x, 0)} {Rpm}",
             "Flow" => $"{N(x, 0)} L/h",
-            "Data" => $"{N(x, 1)} Go",
-            "SmallData" => $"{N(x, 0)} Mo",
+            "Data" => $"{N(x, 1)} {GB}",
+            "SmallData" => $"{N(x, 0)} {MB}",
             "Throughput" => Rate(x),
             "Energy" => $"{N(x, 0)} mWh",
             "Noise" => $"{N(x, 0)} dBA",
@@ -66,33 +71,43 @@ static class Fmt
         };
     }
 
-    static string Rate(float bytes) =>
-        bytes >= 1e9f ? $"{N(bytes / 1e9f, 1)} Go/s" :
-        bytes >= 1e6f ? $"{N(bytes / 1e6f, 1)} Mo/s" :
-        bytes >= 1e3f ? $"{N(bytes / 1e3f, 0)} Ko/s" : $"{N(bytes, 0)} o/s";
+    public static string Rate(float bytes)
+    {
+        var (v, u) = RateParts(bytes);
+        return v + " " + u;
+    }
+
+    /// <summary>Débit en octets/s → (valeur, unité), par ex. ("12,3", "Mo/s").</summary>
+    public static (string Value, string Unit) RateParts(float bytes)
+    {
+        string o = L.T("o", "B"), k = L.T("Ko", "KB"), m = L.T("Mo", "MB"), g = L.T("Go", "GB");
+        return bytes >= 1e9f ? (N(bytes / 1e9f, 1), g + "/s") :
+               bytes >= 1e6f ? (N(bytes / 1e6f, bytes >= 1e8f ? 0 : 1), m + "/s") :
+               bytes >= 1e3f ? (N(bytes / 1e3f, 0), k + "/s") : (N(bytes, 0), o + "/s");
+    }
 
     public static readonly string[] GroupOrder =
         { "Temperature", "Load", "Clock", "Power", "Fan", "Control", "Voltage", "Current", "Data", "SmallData", "Throughput", "Level", "Frequency", "Factor", "Energy", "Noise", "TimeSpan" };
 
     public static string Group(string type) => type switch
     {
-        "Temperature" => "TEMPÉRATURES",
-        "Load" => "UTILISATION",
-        "Clock" => "FRÉQUENCES",
-        "Power" => "PUISSANCE",
-        "Fan" => "VENTILATEURS",
-        "Control" => "COMMANDE DES VENTILATEURS",
-        "Voltage" => "TENSIONS",
-        "Current" => "COURANT",
-        "Data" => "DONNÉES",
-        "SmallData" => "MÉMOIRE",
-        "Throughput" => "DÉBIT",
-        "Level" => "NIVEAUX",
-        "Frequency" => "FRÉQUENCES (HZ)",
-        "Factor" => "FACTEURS",
-        "Energy" => "ÉNERGIE",
-        "Noise" => "BRUIT",
-        "TimeSpan" => "DURÉES",
+        "Temperature" => L.T("TEMPÉRATURES", "TEMPERATURES"),
+        "Load" => L.T("UTILISATION", "LOAD"),
+        "Clock" => L.T("FRÉQUENCES", "CLOCKS"),
+        "Power" => L.T("PUISSANCE", "POWER"),
+        "Fan" => L.T("VENTILATEURS", "FANS"),
+        "Control" => L.T("COMMANDE DES VENTILATEURS", "FAN CONTROL"),
+        "Voltage" => L.T("TENSIONS", "VOLTAGES"),
+        "Current" => L.T("COURANT", "CURRENT"),
+        "Data" => L.T("DONNÉES", "DATA"),
+        "SmallData" => L.T("MÉMOIRE", "MEMORY"),
+        "Throughput" => L.T("DÉBIT", "THROUGHPUT"),
+        "Level" => L.T("NIVEAUX", "LEVELS"),
+        "Frequency" => L.T("FRÉQUENCES (HZ)", "FREQUENCIES (HZ)"),
+        "Factor" => L.T("FACTEURS", "FACTORS"),
+        "Energy" => L.T("ÉNERGIE", "ENERGY"),
+        "Noise" => L.T("BRUIT", "NOISE"),
+        "TimeSpan" => L.T("DURÉES", "DURATIONS"),
         _ => type.ToUpperInvariant(),
     };
 
@@ -100,30 +115,30 @@ static class Fmt
     {
         "Cpu" => "CPU",
         "GpuNvidia" or "GpuAmd" or "GpuIntel" => "GPU",
-        "Memory" => "MÉMOIRE",
-        "Motherboard" => "CARTE MÈRE",
-        "SuperIO" => "CAPTEURS",
-        "Storage" => "DISQUE",
-        "Network" => "RÉSEAU",
-        "Cooler" => "REFROIDISSEMENT",
-        "EmbeddedController" => "CONTRÔLEUR",
-        "Psu" => "ALIMENTATION",
-        "Battery" => "BATTERIE",
+        "Memory" => L.T("MÉMOIRE", "MEMORY"),
+        "Motherboard" => L.T("CARTE MÈRE", "MOTHERBOARD"),
+        "SuperIO" => L.T("CAPTEURS", "SENSORS"),
+        "Storage" => L.T("DISQUE", "DRIVE"),
+        "Network" => L.T("RÉSEAU", "NETWORK"),
+        "Cooler" => L.T("REFROIDISSEMENT", "COOLING"),
+        "EmbeddedController" => L.T("CONTRÔLEUR", "CONTROLLER"),
+        "Psu" => L.T("ALIMENTATION", "POWER SUPPLY"),
+        "Battery" => L.T("BATTERIE", "BATTERY"),
         var t => t.ToUpperInvariant(),
     };
 
-    public static string MachineLine()
+    public static string OsName()
     {
-        string os = "Windows";
         try
         {
             using var k = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
             int.TryParse(k?.GetValue("CurrentBuildNumber") as string, out int build);
-            os = (build >= 22000 ? "Windows 11" : "Windows 10") + (k?.GetValue("DisplayVersion") is string dv ? " " + dv : "");
+            return (build >= 22000 ? "Windows 11" : "Windows 10") + (k?.GetValue("DisplayVersion") is string dv ? " " + dv : "") + $" (build {build})";
         }
-        catch { }
-        return $"{Environment.MachineName}  ·  {os}  ·  Temperator {App.Version}";
+        catch { return "Windows"; }
     }
+
+    public static string MachineLine() => $"{Environment.MachineName}  ·  {OsName().Split(" (")[0]}  ·  Temperator {App.Version}";
 }
 
 static class Native

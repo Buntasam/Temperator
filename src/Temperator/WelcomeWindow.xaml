@@ -73,8 +73,8 @@
             </Canvas>
           </Viewbox>
           <StackPanel Grid.Column="1" Margin="16,0,30,0" VerticalAlignment="Center">
-            <TextBlock Text="Bienvenue dans Temperator" FontFamily="{StaticResource TitleFont}" FontSize="26" FontWeight="SemiBold" Foreground="#F1F3F6"/>
-            <TextBlock Text="Comment veux-tu l'utiliser ? Tu pourras changer à tout moment avec un clic droit sur le widget."
+            <TextBlock x:Name="TWelcome" FontFamily="{StaticResource TitleFont}" FontSize="26" FontWeight="SemiBold" Foreground="#F1F3F6"/>
+            <TextBlock x:Name="TQuestion"
                        FontSize="13.5" Foreground="#8E97A4" TextWrapping="Wrap"/>
           </StackPanel>
           <TextBlock x:Name="CloseX" Grid.Column="1" Text="✕" FontSize="15" Foreground="#8E97A4" Cursor="Hand"
@@ -89,35 +89,35 @@
             <StackPanel>
               <DockPanel>
                 <Border DockPanel.Dock="Right" CornerRadius="6" Padding="7,1,7,2" Background="#224ED8C0" BorderBrush="#554ED8C0" BorderThickness="1" VerticalAlignment="Center">
-                  <TextBlock Text="RECOMMANDÉ" FontFamily="{StaticResource TitleFont}" FontSize="10.5" FontWeight="Bold" Foreground="#4ED8C0"/>
+                  <TextBlock x:Name="TRecommended" FontFamily="{StaticResource TitleFont}" FontSize="10.5" FontWeight="Bold" Foreground="#4ED8C0"/>
                 </Border>
-                <TextBlock Style="{StaticResource CardTitle}" Text="Simple"/>
+                <TextBlock Style="{StaticResource CardTitle}" x:Name="TLite"/>
               </DockPanel>
-              <TextBlock Style="{StaticResource CardText}" Margin="0,2,0,12" Text="Le widget prêt à l'emploi, sans réglages compliqués."/>
+              <TextBlock Style="{StaticResource CardText}" Margin="0,2,0,12" x:Name="TLiteSub"/>
               <ContentControl x:Name="LitePreview" Height="86" HorizontalAlignment="Center" Margin="0,0,0,12"/>
-              <TextBlock Style="{StaticResource Point}" Text="✓  L'essentiel en un coup d'œil"/>
-              <TextBlock Style="{StaticResource Point}" Text="✓  Un menu court : affichage, taille, masquer"/>
-              <TextBlock Style="{StaticResource Point}" Text="✓  Mises à jour automatiques, rien à faire"/>
+              <TextBlock Style="{StaticResource Point}" x:Name="TLite1"/>
+              <TextBlock Style="{StaticResource Point}" x:Name="TLite2"/>
+              <TextBlock Style="{StaticResource Point}" x:Name="TLite3"/>
             </StackPanel>
           </Border>
 
           <Border x:Name="CardFull" Grid.Column="2" Style="{StaticResource ChoiceCard}">
             <StackPanel>
-              <TextBlock Style="{StaticResource CardTitle}" Text="Complet"/>
-              <TextBlock Style="{StaticResource CardText}" Margin="0,2,0,12" Text="Toutes les options, pour régler chaque détail."/>
+              <TextBlock Style="{StaticResource CardTitle}" x:Name="TFull"/>
+              <TextBlock Style="{StaticResource CardText}" Margin="0,2,0,12" x:Name="TFullSub"/>
               <WrapPanel x:Name="FullChips" MinHeight="86" Margin="0,0,0,6"/>
-              <TextBlock Style="{StaticResource Point}" Text="✓  Fond translucide, transparent, opacités"/>
-              <TextBlock Style="{StaticResource Point}" Text="✓  Seuils, alertes, flammes, historique"/>
-              <TextBlock Style="{StaticResource Point}" Text="✓  Clics traversants, raccourci, premier plan"/>
+              <TextBlock Style="{StaticResource Point}" x:Name="TFull1"/>
+              <TextBlock Style="{StaticResource Point}" x:Name="TFull2"/>
+              <TextBlock Style="{StaticResource Point}" x:Name="TFull3"/>
             </StackPanel>
           </Border>
         </Grid>
 
         <!-- bas -->
         <DockPanel Margin="0,22,0,0" LastChildFill="False">
-          <Button x:Name="BtnContinue" DockPanel.Dock="Right" Style="{StaticResource Primary}" Content="Continuer" IsDefault="True"/>
+          <Button x:Name="BtnContinue" DockPanel.Dock="Right" Style="{StaticResource Primary}" IsDefault="True"/>
           <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="12" Foreground="#8E97A4" Opacity="0.85"
-                     Text="Double-clic sur une carte pour choisir directement."/>
+                     x:Name="THint"/>
         </DockPanel>
       </StackPanel>
     </Border>

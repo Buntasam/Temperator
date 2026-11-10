@@ -21,7 +21,7 @@
 
     <Border x:Name="Card" CornerRadius="14" BorderThickness="1" Padding="14,10,14,10">
       <StackPanel x:Name="Body" Width="218">
-        <DockPanel Margin="0,0,0,6">
+        <DockPanel x:Name="Header" Margin="0,0,0,6">
           <Viewbox Width="13" Height="13" VerticalAlignment="Center">
             <Canvas Width="58" Height="58">
               <Path x:Name="LogoArc" Data="M 12.17,45.83 A 23.8,23.8 0 1 1 45.83,45.83" StrokeThickness="7.5"

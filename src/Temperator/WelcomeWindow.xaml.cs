@@ -21,6 +21,23 @@ public partial class WelcomeWindow : Window
     {
         InitializeComponent();
         Choice = current == AppSettings.Full ? AppSettings.Full : AppSettings.Lite;
+        Title = L.T("Bienvenue dans Temperator", "Welcome to Temperator");
+        TWelcome.Text = L.T("Bienvenue dans Temperator", "Welcome to Temperator");
+        TQuestion.Text = L.T("Comment veux-tu l'utiliser ? Tu pourras changer à tout moment avec un clic droit sur le widget.",
+                             "How do you want to use it? You can change at any time by right-clicking the widget.");
+        TRecommended.Text = L.T("RECOMMANDÉ", "RECOMMENDED");
+        TLite.Text = L.T("Simple", "Simple");
+        TLiteSub.Text = L.T("Le widget prêt à l'emploi, sans réglages compliqués.", "The widget ready to go, no complicated settings.");
+        TLite1.Text = "✓  " + L.T("L'essentiel en un coup d'œil", "The essentials at a glance");
+        TLite2.Text = "✓  " + L.T("Un menu court : affichage, taille, masquer", "A short menu: layout, size, hide");
+        TLite3.Text = "✓  " + L.T("Mises à jour automatiques, rien à faire", "Automatic updates, nothing to do");
+        TFull.Text = L.T("Complet", "Full");
+        TFullSub.Text = L.T("Toutes les options, pour régler chaque détail.", "Every option, to tune every detail.");
+        TFull1.Text = "✓  " + L.T("Fond translucide, transparent, opacités", "Translucent or no background, opacity");
+        TFull2.Text = "✓  " + L.T("Seuils, alertes, flammes, historique", "Thresholds, alerts, flames, history");
+        TFull3.Text = "✓  " + L.T("Clics traversants, raccourci, premier plan", "Click-through, shortcut, always on top");
+        THint.Text = L.T("Double-clic sur une carte pour choisir directement.", "Double-click a card to pick it right away.");
+        BtnContinue.Content = L.T("Continuer", "Continue");
 
         // aperçu du mode simple : de vraies jauges
         var palette = new Palette();
@@ -29,13 +46,15 @@ public partial class WelcomeWindow : Window
         {
             var tile = new GaugeTile(name, palette);
             if (temp > 0) tile.Set(temp.ToString("0"), "°", palette.ForTemp(temp, hot - 15, hot), (temp - 20) / 80, palette.ForTemp(temp, hot - 15, hot), $"{load:0} %");
-            else tile.Set("11,4", " Go", palette.Text, load / 100, palette.Accent, $"{load:0} %");
+            else tile.Set(11.4f.ToString("0.0", Fmt.Fr), " " + Fmt.GB, palette.Text, load / 100, palette.Accent, $"{load:0} %");
             gauges.Children.Add(tile.Root);
         }
         LitePreview.Content = gauges;
 
         // aperçu du mode complet : ce qu'on peut régler
-        foreach (var chip in new[] { "Translucide", "Sans fond", "Flammes", "Seuils", "Alertes", "Historique", "Clics traversants", "Raccourci", "Au-dessus de tout" })
+        foreach (var chip in L.Fr
+                     ? new[] { "Translucide", "Sans fond", "Flammes", "Seuils", "Alertes", "Historique", "Réseau", "Batterie", "Mode jeu", "Raccourci", "Au-dessus de tout" }
+                     : new[] { "Translucent", "No background", "Flames", "Thresholds", "Alerts", "History", "Network", "Battery", "Game mode", "Shortcut", "Above everything" })
             FullChips.Children.Add(new Border
             {
                 CornerRadius = new CornerRadius(8), Padding = new Thickness(7, 2, 7, 3), Margin = new Thickness(0, 0, 5, 5),

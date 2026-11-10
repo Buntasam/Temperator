@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Threading;
+using Forms = System.Windows.Forms;
 using LibreHardwareMonitor.Hardware;
 
 namespace Temperator;
@@ -18,6 +19,17 @@ public sealed class Readings
     public float? RamLoad, RamUsed, RamTotal;
     public float? DiskTemp, DiskLoad;
     public float? FanRpm;
+    public float? GpuPower;
+    /// <summary>Consommation CPU + GPU, en watts (approximative : le reste du PC n'est pas mesuré).</summary>
+    public float? TotalPower;
+    /// <summary>Réseau, en octets par seconde.</summary>
+    public float? NetDown, NetUp;
+    public string? NetName;
+    /// <summary>Batterie : niveau en %, en charge ou non, débit en watts (+ charge, − décharge).</summary>
+    public float? BatteryLevel, BatteryRate;
+    public bool BatteryCharging;
+    /// <summary>Le matériel au choix (identifiant, nom) : cartes graphiques, disques, cartes réseau.</summary>
+    public List<(string Id, string Name)> Gpus = new(), Disks = new(), Nets = new();
 }
 
 /// <summary>Lit les capteurs (LibreHardwareMonitor) sur un thread à part et publie les valeurs sur le thread de l'interface.</summary>
@@ -31,6 +43,8 @@ public sealed class SensorHub : IDisposable
         IsMotherboardEnabled = true,
         IsStorageEnabled = true,
         IsControllerEnabled = true,
+        IsNetworkEnabled = true,
+        IsBatteryEnabled = true,
     };
     readonly Dispatcher dispatcher;
     readonly Thread thread;
@@ -41,6 +55,8 @@ public sealed class SensorHub : IDisposable
     /// <summary>À verrouiller pour parcourir le matériel depuis l'interface (le thread capteurs le modifie).</summary>
     public readonly object Sync = new();
     public int IntervalMs { get; set; } = 1000;
+    /// <summary>Matériel choisi dans les réglages (null : automatique).</summary>
+    public volatile string? GpuId, DiskId, NetId;
     public bool Ready { get; private set; }
     public event Action<Readings>? Updated;
 
@@ -74,7 +90,7 @@ public sealed class SensorHub : IDisposable
                     {
                         var hw = computer.Hardware.ToList();
                         foreach (var h in hw) Update(h);
-                        r = Read(hw);
+                        r = Read(hw, GpuId, DiskId, NetId);
                     }
                 }
                 catch (Exception ex)
@@ -83,6 +99,7 @@ public sealed class SensorHub : IDisposable
                 }
             }
             RamFallback(r);
+            BatteryFallback(r);
             if (stopping) break;
             dispatcher.InvokeAsync(() => Updated?.Invoke(r));
             wake.WaitOne(Math.Clamp(IntervalMs, 250, 10000));
@@ -102,7 +119,7 @@ public sealed class SensorHub : IDisposable
 
     // ------------------------------------------------------------------ choix des capteurs à afficher
 
-    static Readings Read(List<IHardware> hw)
+    static Readings Read(List<IHardware> hw, string? gpuId, string? diskId, string? netId)
     {
         var r = new Readings { Ready = true };
 
@@ -116,15 +133,20 @@ public sealed class SensorHub : IDisposable
             r.CpuPower = Find(cpu, SensorType.Power, "CPU Package", "Package");
         }
 
-        // carte graphique dédiée en priorité, sinon la puce intégrée
-        var gpu = hw.FirstOrDefault(h => h.HardwareType is HardwareType.GpuNvidia or HardwareType.GpuAmd)
-                  ?? hw.FirstOrDefault(h => h.HardwareType == HardwareType.GpuIntel);
+        // carte graphique : celle choisie, sinon la dédiée en priorité, sinon la puce intégrée
+        var gpus = hw.Where(h => h.HardwareType is HardwareType.GpuNvidia or HardwareType.GpuAmd or HardwareType.GpuIntel).ToList();
+        r.Gpus = gpus.Select(h => (h.Identifier.ToString(), h.Name)).ToList();
+        var gpu = gpus.FirstOrDefault(h => h.Identifier.ToString() == gpuId)
+                  ?? gpus.FirstOrDefault(h => h.HardwareType is HardwareType.GpuNvidia or HardwareType.GpuAmd)
+                  ?? gpus.FirstOrDefault();
         if (gpu != null)
         {
             r.GpuName = gpu.Name;
             r.GpuTemp = Find(gpu, SensorType.Temperature, "GPU Core", "GPU Hot Spot") ?? Max(gpu, SensorType.Temperature);
             r.GpuLoad = Find(gpu, SensorType.Load, "GPU Core", "D3D 3D") ?? Max(gpu, SensorType.Load);
+            r.GpuPower = Find(gpu, SensorType.Power, "GPU Package", "GPU Power", "GPU Board Power", "GPU Core") ?? Max(gpu, SensorType.Power);
         }
+        if (r.CpuPower.HasValue || r.GpuPower.HasValue) r.TotalPower = (r.CpuPower ?? 0) + (r.GpuPower ?? 0);
 
         var mem = hw.FirstOrDefault(h => h.HardwareType == HardwareType.Memory && !h.Name.Contains("Virtual", StringComparison.OrdinalIgnoreCase));
         if (mem != null)
@@ -135,13 +157,51 @@ public sealed class SensorHub : IDisposable
             if (r.RamUsed.HasValue && avail.HasValue) r.RamTotal = r.RamUsed + avail;
         }
 
-        // disques : le plus chaud, et l'activité la plus forte
-        foreach (var d in hw.Where(h => h.HardwareType == HardwareType.Storage))
+        // disques : celui choisi, sinon le plus chaud (et l'activité la plus forte)
+        var disks = hw.Where(h => h.HardwareType == HardwareType.Storage).ToList();
+        r.Disks = disks.Select(h => (h.Identifier.ToString(), h.Name)).ToList();
+        var chosen = disks.FirstOrDefault(h => h.Identifier.ToString() == diskId);
+        foreach (var d in chosen != null ? new List<IHardware> { chosen } : disks)
         {
             var t = Find(d, SensorType.Temperature, "Temperature", "Composite Temperature") ?? Max(d, SensorType.Temperature);
             if (t.HasValue && (r.DiskTemp == null || t > r.DiskTemp)) { r.DiskTemp = t; r.DiskName = d.Name; }
             var a = Find(d, SensorType.Load, "Total Activity");
             if (a.HasValue && (r.DiskLoad == null || a > r.DiskLoad)) r.DiskLoad = a;
+            if (chosen != null) r.DiskName = d.Name;
+        }
+
+        // réseau : la carte choisie, sinon la plus active en ce moment
+        // cartes réseau : sans les cartes virtuelles de Windows (Hyper-V, WAN Miniport, filtres…), une seule par nom
+        var real = RealAdapters();
+        var nets = hw.Where(h => h.HardwareType.ToString() == "Network" && real.Contains(h.Name))
+                     .GroupBy(h => h.Name).Select(g => g.First()).ToList();
+        r.Nets = nets.Select(h => (h.Identifier.ToString(), h.Name)).ToList();
+        IHardware? net = nets.FirstOrDefault(h => h.Identifier.ToString() == netId);
+        if (net == null)
+        {
+            float best = -1;
+            foreach (var n in nets)
+            {
+                float total = (Find(n, SensorType.Throughput, "Download Speed") ?? 0) + (Find(n, SensorType.Throughput, "Upload Speed") ?? 0);
+                if (total > best) { best = total; net = n; }
+            }
+        }
+        if (net != null)
+        {
+            r.NetName = net.Name;
+            r.NetDown = Find(net, SensorType.Throughput, "Download Speed");
+            r.NetUp = Find(net, SensorType.Throughput, "Upload Speed");
+        }
+
+        // batterie (portables) : débit de charge ou de décharge
+        var battery = hw.FirstOrDefault(h => h.HardwareType.ToString() == "Battery");
+        if (battery != null)
+        {
+            r.BatteryLevel = Find(battery, SensorType.Level, "Charge Level");
+            var charge = Find(battery, SensorType.Power, "Charge Rate");
+            var discharge = Find(battery, SensorType.Power, "Discharge Rate");
+            if (charge > 0) { r.BatteryRate = charge; r.BatteryCharging = true; }
+            else if (discharge > 0) r.BatteryRate = -discharge;
         }
 
         // ventilateur : le plus rapide de la carte mère / du refroidissement, sinon celui de la carte graphique
@@ -154,6 +214,32 @@ public sealed class SensorHub : IDisposable
         if (r.FanRpm <= 0) r.FanRpm = null;
 
         return r;
+    }
+
+    static readonly string[] VirtualAdapters =
+        { "virtual", "pseudo", "loopback", "miniport", "filter", "hyper-v", "vethernet", "npcap", "kernel debug", "teredo", "isatap", "6to4", "vmware", "virtualbox", "tap-", "wintun", "bluetooth" };
+
+    static HashSet<string> realAdapters = new();
+    static DateTime realAdaptersAt = DateTime.MinValue;
+
+    /// <summary>
+    /// Noms des vraies cartes réseau (Wi-Fi, Ethernet…), d'après Windows : la description dit si une carte est virtuelle
+    /// (« Ethernet 2 » peut être une carte VirtualBox). Recalculé chaque minute (carte branchée, Wi-Fi activé…).
+    /// </summary>
+    static HashSet<string> RealAdapters()
+    {
+        if (DateTime.UtcNow - realAdaptersAt < TimeSpan.FromMinutes(1)) return realAdapters;
+        realAdaptersAt = DateTime.UtcNow;
+        try
+        {
+            realAdapters = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                .Where(n => n.NetworkInterfaceType is not (System.Net.NetworkInformation.NetworkInterfaceType.Loopback or System.Net.NetworkInformation.NetworkInterfaceType.Tunnel)
+                            && !VirtualAdapters.Any(v => n.Description.Contains(v, StringComparison.OrdinalIgnoreCase) || n.Name.Contains(v, StringComparison.OrdinalIgnoreCase)))
+                .Select(n => n.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch { }
+        return realAdapters;
     }
 
     static IEnumerable<ISensor> AllSensors(IHardware h)
@@ -198,6 +284,23 @@ public sealed class SensorHub : IDisposable
 
     [DllImport("kernel32.dll", SetLastError = true)]
     static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx status);
+
+    /// <summary>Niveau de batterie par Windows si LibreHardwareMonitor ne le donne pas (et état « sur secteur »).</summary>
+    static void BatteryFallback(Readings r)
+    {
+        try
+        {
+            var p = Forms.SystemInformation.PowerStatus;
+            if (p.BatteryChargeStatus.HasFlag(Forms.BatteryChargeStatus.NoSystemBattery) || p.BatteryChargeStatus == Forms.BatteryChargeStatus.Unknown)
+            {
+                r.BatteryLevel = null;
+                return;
+            }
+            r.BatteryLevel ??= p.BatteryLifePercent * 100;
+            if (p.PowerLineStatus == Forms.PowerLineStatus.Online && r.BatteryRate is not < 0) r.BatteryCharging = p.BatteryLifePercent < 1 || r.BatteryCharging;
+        }
+        catch { }
+    }
 
     static void RamFallback(Readings r)
     {

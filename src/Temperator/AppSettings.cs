@@ -15,6 +15,21 @@ public sealed class AppSettings
     public bool ShowRam { get; set; } = true;
     public bool ShowDisk { get; set; } = true;
     public bool ShowFan { get; set; }
+    public bool ShowNet { get; set; }
+    public bool ShowBattery { get; set; } = true;
+    public bool ShowPower { get; set; }
+
+    /// <summary>Matériel affiché (identifiant LibreHardwareMonitor) ; null : automatique.</summary>
+    public string? GpuId { get; set; }
+    public string? DiskId { get; set; }
+    public string? NetId { get; set; }
+
+    /// <summary>Langue : "auto" (celle de Windows), "fr" ou "en".</summary>
+    public string Language { get; set; } = "auto";
+    /// <summary>Couleur d'accent du widget (#RRGGBB).</summary>
+    public string Accent { get; set; } = "#4ED8C0";
+    /// <summary>Jeu ou vidéo en plein écran : "compact", "hide" (masquer) ou "off".</summary>
+    public string GameMode { get; set; } = "compact";
 
     public bool Fahrenheit { get; set; }
     /// <summary>Verre teinté qui adapte ses couleurs au fond de l'écran.</summary>
@@ -105,6 +120,9 @@ public sealed class AppSettings
         GpuHot = Math.Clamp(GpuHot, 60, 100);
         DiskHot = Math.Clamp(DiskHot, 40, 80);
         if (UpdateMode is not ("auto" or "notify" or "off")) UpdateMode = "auto";
+        if (GameMode is not ("compact" or "hide" or "off")) GameMode = "compact";
+        if (Language is not ("auto" or "fr" or "en")) Language = "auto";
+        if (Accent is null || !System.Text.RegularExpressions.Regex.IsMatch(Accent, "^#[0-9A-Fa-f]{6}$")) Accent = "#4ED8C0";
         return this;
     }
 

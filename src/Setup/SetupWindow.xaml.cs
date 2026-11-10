@@ -16,7 +16,7 @@ namespace TemperatorSetup
         const string Spinner = "M 12.17,45.83 A 23.8,23.8 0 0 1 9.5,15.35";   // arc court qui tourne
         const string CheckMark = "M 19,30 L 26,37 L 40,22";
         const string CrossMark = "M 22,22 L 36,36 M 36,22 L 22,36";
-        const string Tagline = "Températures et utilisation de ton PC, toujours à l'écran.";
+        static string Tagline => S.T("Températures et utilisation de ton PC, toujours à l'écran.", "Your PC's temperatures and usage, always on screen.");
 
         static readonly Color Accent = Color.FromRgb(0x4E, 0xD8, 0xC0);
         static readonly Color Danger = Color.FromRgb(0xFF, 0x5A, 0x5F);
@@ -31,10 +31,11 @@ namespace TemperatorSetup
         internal SetupWindow(Options o, bool uninstall, bool preview = false)
         {
             InitializeComponent();
+            ApplyTexts();
             opt = o;
             uninstallMode = uninstall;
             Ver.Text = "v" + Engine.Version;
-            PathText.Text = "Dossier : " + Engine.Dir(o.Name);
+            PathText.Text = S.T("Dossier : ", "Folder: ") + Engine.Dir(o.Name);
 
             needRuntime = !preview && !Engine.HasRuntime();
             needPawn = !preview && !Engine.HasPawnIO();
@@ -42,7 +43,7 @@ namespace TemperatorSetup
 
             if (!preview && Engine.IsInstalled(o.Name))
             {
-                BtnInstall.Content = "Mettre à jour";
+                BtnInstall.Content = S.T("Mettre à jour", "Update");
                 BtnGoUninstall.Visibility = Visibility.Visible;
             }
 
@@ -80,6 +81,37 @@ namespace TemperatorSetup
             ContentRendered += (_, _) => Activate();   // au premier plan, même lancé depuis le navigateur
 
             if (uninstall) ShowUninstallConfirm();
+        }
+
+        /// <summary>Tous les textes fixes de la fenêtre, en français ou en anglais (selon la langue de Windows).</summary>
+        void ApplyTexts()
+        {
+            Title = S.T("Installer Temperator", "Install Temperator");
+            Subtitle.Text = Tagline;
+            BtnInstall.Content = S.T("Installer", "Install");
+            BtnCancel.Content = S.T("Annuler", "Cancel");
+            BtnGoUninstall.Content = S.T("Désinstaller", "Uninstall");
+            TAuto.Text = S.T("Lancer au démarrage de Windows", "Start with Windows");
+            SAuto.Text = S.T("S'ouvre tout seul à chaque session, sans demande d'autorisation.", "Opens by itself at every sign-in, with no permission prompt.");
+            TDesk.Text = S.T("Raccourci sur le bureau", "Desktop shortcut");
+            SDesk.Text = S.T("Le menu Démarrer en a toujours un.", "The Start menu always has one.");
+            TLaunch.Text = S.T("Lancer Temperator à la fin", "Launch Temperator when done");
+            SLaunch.Text = S.T("Il s'affiche en haut à droite de l'écran.", "It appears at the top right of the screen.");
+            TMissing.Text = S.T("À INSTALLER AUSSI", "ALSO INSTALLED");
+            BDotNet.Text = BPawn.Text = S.T("OBLIGATOIRE", "REQUIRED");
+            SDotNet.Text = S.T("Nécessaire pour faire tourner Temperator. Microsoft, environ 57 Mo à télécharger.", "Needed to run Temperator. Microsoft, about 57 MB to download.");
+            TPawn.Text = S.T("Pilote PawnIO", "PawnIO driver");
+            SPawn.Text = S.T("Pour la température du CPU et les ventilateurs. Open source et signé, environ 3 Mo.", "For the CPU temperature and fans. Open source and signed, about 3 MB.");
+            AllGood.Text = "✓  " + S.T("Tout ce qu'il faut est déjà sur ce PC (.NET 10, pilote PawnIO).", "Everything needed is already on this PC (.NET 10, PawnIO driver).");
+            TLicense.Text = S.T("J'accepte la licence de Temperator", "I accept the Temperator license");
+            RLicense.Text = S.T("Usage personnel et gratuit. Pas de redistribution ni d'usage commercial. ", "Free personal use. No redistribution or commercial use. ");
+            LicenseLink.Text = S.T("Lire la licence", "Read the license");
+            BtnAccept.Content = S.T("J'accepte", "I accept");
+            BtnBack.Content = S.T("Retour", "Back");
+            Status.Text = S.T("Préparation", "Preparing");
+            Hint.Text = S.T("Quelques secondes, ou un peu plus s'il faut télécharger .NET 10.", "A few seconds, or a bit more if .NET 10 must be downloaded.");
+            BtnMain.Content = S.T("Terminer", "Finish");
+            BtnSecond.Content = S.T("Annuler", "Cancel");
         }
 
         static string ReadLicense()
@@ -174,17 +206,22 @@ namespace TemperatorSetup
 
         void ShowUninstallConfirm()
         {
-            ShowMessage("Désinstaller Temperator de ce PC ?",
-                "Le widget, son démarrage automatique, ses raccourcis et ses réglages seront supprimés. " +
-                "Le pilote PawnIO et .NET 10 restent installés (d'autres logiciels peuvent s'en servir).",
-                Danger, null, "Désinstaller", withCancel: true);
+            ShowMessage(S.T("Désinstaller Temperator de ce PC ?", "Uninstall Temperator from this PC?"),
+                S.T("Le widget, son démarrage automatique, ses raccourcis et ses réglages seront supprimés. " +
+                    "Le pilote PawnIO et .NET 10 restent installés (d'autres logiciels peuvent s'en servir).",
+                    "The widget, its startup, its shortcuts and its settings will be removed. " +
+                    "The PawnIO driver and .NET 10 stay installed (other software may use them)."),
+                Danger, null, S.T("Désinstaller", "Uninstall"), withCancel: true);
             confirmUninstall = true;
         }
 
         static string DoneText(bool launched) =>
-            (launched ? "Il est lancé : regarde en haut à droite de l'écran. " : "Lance-le depuis le menu Démarrer. ") +
-            "Glisse-le pour le déplacer, double-clic pour le plan du PC, clic droit pour les réglages. " +
-            "Son icône près de l'horloge le masque ou le réaffiche, Ctrl+Alt+T aussi.";
+            S.T((launched ? "Il est lancé : regarde en haut à droite de l'écran. " : "Lance-le depuis le menu Démarrer. ") +
+                "Glisse-le pour le déplacer, double-clic pour le plan du PC, clic droit pour les réglages. " +
+                "Son icône près de l'horloge le masque ou le réaffiche, Ctrl+Alt+T aussi.",
+                (launched ? "It's running: look at the top right of the screen. " : "Start it from the Start menu. ") +
+                "Drag it to move it, double-click for the PC map, right-click for the settings. " +
+                "Its icon near the clock hides or shows it, and so does Ctrl+Alt+T.");
 
         // ------------------------------------------------------------------ travail en arrière-plan : la fenêtre reste fluide
 
@@ -203,9 +240,9 @@ namespace TemperatorSetup
             LogoArc.Data = Geometry.Parse(Spinner);
             LogoRot.BeginAnimation(RotateTransform.AngleProperty,
                 new DoubleAnimation(0, 360, TimeSpan.FromSeconds(1.1)) { RepeatBehavior = RepeatBehavior.Forever });
-            Subtitle.Text = uninstall ? "Désinstallation en cours…" : "Installation en cours…";
+            Subtitle.Text = uninstall ? S.T("Désinstallation en cours…", "Uninstalling…") : S.T("Installation en cours…", "Installing…");
             Hint.Visibility = uninstall || !needRuntime ? Visibility.Collapsed : Visibility.Visible;
-            Status.Text = "Préparation";
+            Status.Text = S.T("Préparation", "Preparing");
             FillScale.ScaleX = 0;
             ShowPage(PageProgress);
 
@@ -227,9 +264,9 @@ namespace TemperatorSetup
             catch (Exception e) { error = e.Message; }
 
             busy = false;
-            if (error != null) ShowMessage("Un problème est survenu.", error, Danger, CrossMark, "Fermer");
-            else if (uninstall) ShowMessage("Désinstallé.", "Temperator a été retiré de ce PC.", Muted, CheckMark, "Terminer");
-            else ShowMessage("C'est installé !", DoneText(opt.Launch), Accent, CheckMark, "Terminer");
+            if (error != null) ShowMessage(S.T("Un problème est survenu.", "Something went wrong."), error, Danger, CrossMark, S.T("Fermer", "Close"));
+            else if (uninstall) ShowMessage(S.T("Désinstallé.", "Uninstalled."), S.T("Temperator a été retiré de ce PC.", "Temperator was removed from this PC."), Muted, CheckMark, S.T("Terminer", "Finish"));
+            else ShowMessage(S.T("C'est installé !", "Installed!"), DoneText(opt.Launch), Accent, CheckMark, S.T("Terminer", "Finish"));
         }
 
         // ------------------------------------------------------------------ aperçu (développement) : chaque écran en PNG

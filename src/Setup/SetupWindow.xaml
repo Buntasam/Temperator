@@ -139,32 +139,32 @@
         <StackPanel>
           <DockPanel x:Name="RowAuto" Style="{StaticResource Row}" Cursor="Hand">
             <CheckBox x:Name="OptAuto" DockPanel.Dock="Right" Style="{StaticResource Toggle}" IsChecked="True" VerticalAlignment="Center"/>
-            <StackPanel Margin="0,0,16,0"><TextBlock Style="{StaticResource Title}" Text="Lancer au démarrage de Windows"/><TextBlock Style="{StaticResource Sub}" Text="S'ouvre tout seul à chaque session, sans demande d'autorisation."/></StackPanel>
+            <StackPanel Margin="0,0,16,0"><TextBlock Style="{StaticResource Title}" x:Name="TAuto"/><TextBlock Style="{StaticResource Sub}" x:Name="SAuto"/></StackPanel>
           </DockPanel>
           <DockPanel x:Name="RowDesk" Style="{StaticResource Row}" Cursor="Hand">
             <CheckBox x:Name="OptDesk" DockPanel.Dock="Right" Style="{StaticResource Toggle}" IsChecked="True" VerticalAlignment="Center"/>
-            <StackPanel Margin="0,0,16,0"><TextBlock Style="{StaticResource Title}" Text="Raccourci sur le bureau"/><TextBlock Style="{StaticResource Sub}" Text="Le menu Démarrer en a toujours un."/></StackPanel>
+            <StackPanel Margin="0,0,16,0"><TextBlock Style="{StaticResource Title}" x:Name="TDesk"/><TextBlock Style="{StaticResource Sub}" x:Name="SDesk"/></StackPanel>
           </DockPanel>
           <DockPanel x:Name="RowLaunch" Style="{StaticResource Row}" Cursor="Hand">
             <CheckBox x:Name="OptLaunch" DockPanel.Dock="Right" Style="{StaticResource Toggle}" IsChecked="True" VerticalAlignment="Center"/>
-            <StackPanel Margin="0,0,16,0"><TextBlock Style="{StaticResource Title}" Text="Lancer Temperator à la fin"/><TextBlock Style="{StaticResource Sub}" Text="Il s'affiche en haut à droite de l'écran."/></StackPanel>
+            <StackPanel Margin="0,0,16,0"><TextBlock Style="{StaticResource Title}" x:Name="TLaunch"/><TextBlock Style="{StaticResource Sub}" x:Name="SLaunch"/></StackPanel>
           </DockPanel>
 
           <!-- ce qui manque sur ce PC (affiché seulement s'il manque) -->
           <StackPanel x:Name="Missing" Visibility="Collapsed">
-            <TextBlock Text="À INSTALLER AUSSI" FontFamily="{StaticResource TitleFont}" FontSize="11" FontWeight="Bold" Foreground="#4ED8C0" Margin="0,6,0,10"/>
+            <TextBlock x:Name="TMissing" FontFamily="{StaticResource TitleFont}" FontSize="11" FontWeight="Bold" Foreground="#4ED8C0" Margin="0,6,0,10"/>
             <DockPanel x:Name="RowDotNet" Style="{StaticResource Row}">
               <CheckBox DockPanel.Dock="Right" Style="{StaticResource Toggle}" IsChecked="True" IsEnabled="False" VerticalAlignment="Center"/>
               <StackPanel Margin="0,0,16,0">
-                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Title}" Text=".NET 10 Desktop Runtime"/><Border Style="{StaticResource Badge}"><TextBlock Text="OBLIGATOIRE" FontFamily="{StaticResource TitleFont}" FontSize="10.5" FontWeight="Bold" Foreground="#4ED8C0"/></Border></StackPanel>
-                <TextBlock Style="{StaticResource Sub}" Text="Nécessaire pour faire tourner Temperator. Microsoft, environ 57 Mo à télécharger."/>
+                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Title}" Text=".NET 10 Desktop Runtime"/><Border Style="{StaticResource Badge}"><TextBlock x:Name="BDotNet" Text="OBLIGATOIRE" FontFamily="{StaticResource TitleFont}" FontSize="10.5" FontWeight="Bold" Foreground="#4ED8C0"/></Border></StackPanel>
+                <TextBlock Style="{StaticResource Sub}" x:Name="SDotNet"/>
               </StackPanel>
             </DockPanel>
             <DockPanel x:Name="RowPawn" Style="{StaticResource Row}">
               <CheckBox DockPanel.Dock="Right" Style="{StaticResource Toggle}" IsChecked="True" IsEnabled="False" VerticalAlignment="Center"/>
               <StackPanel Margin="0,0,16,0">
-                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Title}" Text="Pilote PawnIO"/><Border Style="{StaticResource Badge}"><TextBlock Text="OBLIGATOIRE" FontFamily="{StaticResource TitleFont}" FontSize="10.5" FontWeight="Bold" Foreground="#4ED8C0"/></Border></StackPanel>
-                <TextBlock Style="{StaticResource Sub}" Text="Pour la température du CPU et les ventilateurs. Open source et signé, environ 3 Mo."/>
+                <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Title}" x:Name="TPawn"/><Border Style="{StaticResource Badge}"><TextBlock x:Name="BPawn" Text="OBLIGATOIRE" FontFamily="{StaticResource TitleFont}" FontSize="10.5" FontWeight="Bold" Foreground="#4ED8C0"/></Border></StackPanel>
+                <TextBlock Style="{StaticResource Sub}" x:Name="SPawn"/>
               </StackPanel>
             </DockPanel>
           </StackPanel>
@@ -172,9 +172,9 @@
           <DockPanel x:Name="RowLicense" Style="{StaticResource Row}" Cursor="Hand" Margin="0,10,0,6">
             <CheckBox x:Name="OptLicense" DockPanel.Dock="Right" Style="{StaticResource Toggle}" IsChecked="False" VerticalAlignment="Center"/>
             <StackPanel Margin="0,0,16,0">
-              <TextBlock Style="{StaticResource Title}" Text="J'accepte la licence de Temperator"/>
+              <TextBlock Style="{StaticResource Title}" x:Name="TLicense"/>
               <TextBlock Style="{StaticResource Sub}">
-                <Run Text="Usage personnel et gratuit. Pas de redistribution ni d'usage commercial."/>
+                <Run x:Name="RLicense"/>
                 <Run x:Name="LicenseLink" Text="Lire la licence" Foreground="#4ED8C0" TextDecorations="Underline" Cursor="Hand"/>
               </TextBlock>
             </StackPanel>

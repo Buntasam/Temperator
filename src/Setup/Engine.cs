@@ -25,6 +25,13 @@ namespace TemperatorSetup
         public bool Update;
     }
 
+    /// <summary>Langue de l'installeur : celle de Windows (français, sinon anglais).</summary>
+    static class S
+    {
+        public static bool Fr = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "fr";
+        public static string T(string fr, string en) => Fr ? fr : en;
+    }
+
     struct Step
     {
         public double Value;
@@ -73,9 +80,9 @@ namespace TemperatorSetup
         public static void Install(Options o, IProgress<Step> report)
         {
             string dir = Dir(o.Name), app = Path.Combine(dir, "app");
-            report.Report(new Step(0.03, "Préparation"));
+            report.Report(new Step(0.03, S.T("Préparation", "Preparing")));
             if (!Environment.Is64BitOperatingSystem || Environment.OSVersion.Version.Major < 10)
-                throw new InvalidOperationException("Temperator nécessite Windows 10 ou 11 en 64 bits.");
+                throw new InvalidOperationException(S.T("Temperator nécessite Windows 10 ou 11 en 64 bits.", "Temperator requires 64-bit Windows 10 or 11."));
 
             if (o.Update)   // on garde les choix de l'installation précédente
             {
@@ -87,13 +94,14 @@ namespace TemperatorSetup
 
             if (!HasRuntime())
             {
-                report.Report(new Step(0.08, "Installation de .NET 10 (Microsoft, environ 57 Mo)"));
+                report.Report(new Step(0.08, S.T("Installation de .NET 10 (Microsoft, environ 57 Mo)", "Installing .NET 10 (Microsoft, about 57 MB)")));
                 InstallRuntime();
                 if (!HasRuntime())
-                    throw new InvalidOperationException("Impossible d'installer .NET 10. Vérifie ta connexion internet, ou installe « .NET Desktop Runtime 10 (x64) » depuis dotnet.microsoft.com, puis relance l'installeur.");
+                    throw new InvalidOperationException(S.T("Impossible d'installer .NET 10. Vérifie ta connexion internet, ou installe « .NET Desktop Runtime 10 (x64) » depuis dotnet.microsoft.com, puis relance l'installeur.",
+                                                          "Couldn't install .NET 10. Check your internet connection, or install \".NET Desktop Runtime 10 (x64)\" from dotnet.microsoft.com, then run the installer again."));
             }
 
-            report.Report(new Step(0.45, "Copie des fichiers"));
+            report.Report(new Step(0.45, S.T("Copie des fichiers", "Copying files")));
             if (Directory.Exists(app)) DeleteDirectory(app);   // pas de vieilles DLL
             Directory.CreateDirectory(app);
             using (var zip = new ZipArchive(Payload(), ZipArchiveMode.Read)) zip.ExtractToDirectory(app);
@@ -107,7 +115,7 @@ namespace TemperatorSetup
             Directory.CreateDirectory(DataDir);
             GrantUsersModify(DataDir);   // réglages modifiables par tous
 
-            report.Report(new Step(0.6, "Démarrage et raccourcis"));
+            report.Report(new Step(0.6, S.T("Démarrage et raccourcis", "Startup and shortcuts")));
             string user = ConsoleUser();
             RegisterTask(o, user, Path.Combine(app, "Temperator.exe"), app);
             CreateShortcut(MenuLnk(o.Name), dir, o.Name);
@@ -117,41 +125,42 @@ namespace TemperatorSetup
 
             if (!HasPawnIO())
             {
-                report.Report(new Step(0.7, "Installation du pilote PawnIO (environ 3 Mo)"));
+                report.Report(new Step(0.7, S.T("Installation du pilote PawnIO (environ 3 Mo)", "Installing the PawnIO driver (about 3 MB)")));
                 InstallPawnIO();
                 if (!HasPawnIO())
-                    throw new InvalidOperationException("Temperator est installé, mais le pilote PawnIO (obligatoire) n'a pas pu s'installer. Vérifie ta connexion internet et relance l'installeur, ou installe PawnIO depuis pawnio.eu.");
+                    throw new InvalidOperationException(S.T("Temperator est installé, mais le pilote PawnIO (obligatoire) n'a pas pu s'installer. Vérifie ta connexion internet et relance l'installeur, ou installe PawnIO depuis pawnio.eu.",
+                                                          "Temperator is installed, but the PawnIO driver (required) couldn't be installed. Check your internet connection and run the installer again, or install PawnIO from pawnio.eu."));
             }
 
             if (o.Launch)
             {
-                report.Report(new Step(0.95, "Lancement de Temperator"));
+                report.Report(new Step(0.95, S.T("Lancement de Temperator", "Launching Temperator")));
                 Run(Path.Combine(System32, "schtasks.exe"), $"/run /tn \"{o.Name}\"");
             }
-            report.Report(new Step(1, "Terminé"));
+            report.Report(new Step(1, S.T("Terminé", "Done")));
         }
 
         public static void Uninstall(Options o, IProgress<Step> report)
         {
             string dir = Dir(o.Name);
-            report.Report(new Step(0.15, "Arrêt de Temperator"));
+            report.Report(new Step(0.15, S.T("Arrêt de Temperator", "Stopping Temperator")));
             StopTemperator(Path.Combine(dir, "app"));
-            report.Report(new Step(0.45, "Suppression du démarrage et des raccourcis"));
+            report.Report(new Step(0.45, S.T("Suppression du démarrage et des raccourcis", "Removing startup and shortcuts")));
             Run(Path.Combine(System32, "schtasks.exe"), $"/delete /tn \"{o.Name}\" /f");
             TryDelete(MenuLnk(o.Name));
             TryDelete(DeskLnk(o.Name));
             Registry.LocalMachine.DeleteSubKeyTree(UninstallKey(o.Name), false);
             if (!o.KeepSettings) TryDeleteDirectory(DataDir);
-            report.Report(new Step(0.75, "Suppression des fichiers"));
+            report.Report(new Step(0.75, S.T("Suppression des fichiers", "Removing files")));
             TryDeleteDirectory(dir);
-            report.Report(new Step(1, "Terminé"));
+            report.Report(new Step(1, S.T("Terminé", "Done")));
         }
 
         // ------------------------------------------------------------------ étapes
 
         static Stream Payload() =>
             Assembly.GetExecutingAssembly().GetManifestResourceStream("Temperator.zip")
-            ?? throw new InvalidOperationException("L'application manque dans l'installeur. Télécharge à nouveau Temperator-Setup.exe.");
+            ?? throw new InvalidOperationException(S.T("L'application manque dans l'installeur. Télécharge à nouveau Temperator-Setup.exe.", "The app is missing from the installer. Download Temperator-Setup.exe again."));
 
         /// <summary>Ferme Temperator : d'abord poliment (il enregistre ses réglages et retire son icône), sinon de force.</summary>
         static void StopTemperator(string onlyFrom)
@@ -257,7 +266,7 @@ $@"<?xml version=""1.0"" encoding=""UTF-16""?>
             try
             {
                 int code = Run(Path.Combine(System32, "schtasks.exe"), $"/create /tn \"{o.Name}\" /xml \"{file}\" /f");
-                if (code != 0) throw new InvalidOperationException($"Impossible de créer la tâche de démarrage (code {code}).");
+                if (code != 0) throw new InvalidOperationException(S.T($"Impossible de créer la tâche de démarrage (code {code}).", $"Couldn't create the startup task (code {code})."));
             }
             finally { TryDelete(file); }
         }

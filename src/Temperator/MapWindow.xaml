@@ -27,7 +27,7 @@
             </Canvas>
           </Viewbox>
           <StackPanel Grid.Column="1" Margin="16,0,30,0" VerticalAlignment="Center">
-            <TextBlock Text="Plan du PC" FontFamily="{StaticResource TitleFont}" FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource Text}"/>
+            <TextBlock x:Name="Heading" Text="Plan du PC" FontFamily="{StaticResource TitleFont}" FontSize="24" FontWeight="SemiBold" Foreground="{StaticResource Text}"/>
             <TextBlock x:Name="Machine" FontSize="12.5" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
           </StackPanel>
           <TextBlock x:Name="CloseX" Grid.Column="1" Text="✕" FontSize="15" Foreground="{StaticResource Muted}" Cursor="Hand"

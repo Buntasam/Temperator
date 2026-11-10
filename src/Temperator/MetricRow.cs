@@ -24,8 +24,8 @@ sealed class MetricRow
     public MetricRow(string label, Palette palette)
     {
         this.palette = palette;
-        Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(52) });
-        Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(64) });
+        Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(62) });
         Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
 
@@ -94,6 +94,15 @@ sealed class MetricRow
         shown = l;
         scale.BeginAnimation(ScaleTransform.ScaleXProperty,
             new DoubleAnimation(l / 100.0, TimeSpan.FromMilliseconds(450)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+    }
+
+    /// <summary>Barre avec sa propre couleur et un texte à droite (batterie : niveau, et « ⚡ » ou les watts).</summary>
+    public void SetBar(float? percent, Brush brush, string side)
+    {
+        SetLoad(percent);
+        if (percent is null) return;
+        fill.Background = brush;
+        pct.Text = side;
     }
 
     /// <summary>Trop chaud : la valeur rougeoie en pulsant.</summary>

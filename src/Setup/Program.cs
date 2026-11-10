@@ -14,6 +14,7 @@ namespace TemperatorSetup
     ///   /S                     sans interface : /noautostart /nodesktop /nolaunch /keepsettings /name X
     ///   /update                mise à jour (garde les choix déjà faits), utilisée par la mise à jour automatique
     ///   /preview dossier       rend chaque écran en PNG, sans rien installer
+    ///   /lang fr|en            langue de l'interface (par défaut : celle de Windows)
     /// Les options s'écrivent aussi avec un tiret (-Silent, -Uninstall, -NoLaunch…).
     /// </summary>
     static class Program
@@ -38,6 +39,7 @@ namespace TemperatorSetup
                     case "fromtemp": fromTemp = true; break;
                     case "name" when i + 1 < args.Length: o.Name = args[++i]; break;
                     case "preview" when i + 1 < args.Length: preview = args[++i]; break;
+                    case "lang" when i + 1 < args.Length: S.Fr = args[++i].StartsWith("fr", StringComparison.OrdinalIgnoreCase); break;
                 }
             }
 

@@ -71,7 +71,7 @@ sealed class Updater
             if (!Version.TryParse(tag, out var latest) || !Version.TryParse(App.Version, out var current) || latest <= current)
             {
                 Available = null;
-                if (manual) app.Notify("Temperator est à jour", $"Tu as la dernière version ({App.Version}).");
+                if (manual) app.Notify(L.T("Temperator est à jour", "Temperator is up to date"), L.T($"Tu as la dernière version ({App.Version}).", $"You have the latest version ({App.Version})."));
                 return;
             }
 
@@ -87,12 +87,12 @@ sealed class Updater
             Available = latest.ToString(3);
 
             if (app.Settings.UpdateMode == Auto || manual) await Install();
-            else app.Notify("Mise à jour disponible", $"Temperator {Available} est disponible. Clique ici pour l'installer.", onClick: () => _ = Install());
+            else app.Notify(L.T("Mise à jour disponible", "Update available"), L.T($"Temperator {Available} est disponible. Clique ici pour l'installer.", $"Temperator {Available} is available. Click here to install it."), onClick: () => _ = Install());
         }
         catch (Exception ex)
         {
             App.Log(ex);
-            if (manual) app.Notify("Vérification impossible", "Impossible de joindre GitHub. Vérifie ta connexion internet.", warning: true);
+            if (manual) app.Notify(L.T("Vérification impossible", "Check failed"), L.T("Impossible de joindre GitHub. Vérifie ta connexion internet.", "Couldn't reach GitHub. Check your internet connection."), warning: true);
         }
     }
 
@@ -102,32 +102,32 @@ sealed class Updater
         busy = true;
         try
         {
-            app.Notify("Mise à jour de Temperator", $"Téléchargement de la version {Available}…");
+            app.Notify(L.T("Mise à jour de Temperator", "Updating Temperator"), L.T($"Téléchargement de la version {Available}…", $"Downloading version {Available}…"));
             byte[] data = await Http.GetByteArrayAsync(setupUrl);
 
             // l'installeur doit correspondre à l'empreinte publiée avec la release, sinon on n'installe rien
-            if (sumsUrl == null) throw new InvalidDataException("Pas d'empreinte SHA-256 publiée avec cette version : mise à jour annulée.");
+            if (sumsUrl == null) throw new InvalidDataException(L.T("Pas d'empreinte SHA-256 publiée avec cette version : mise à jour annulée.", "No SHA-256 fingerprint published with this version: update cancelled."));
             string sums = await Http.GetStringAsync(sumsUrl);
             string? expected = sums.Split('\n')
                 .Select(l => l.Trim().Split(new[] { ' ', '\t', '*' }, StringSplitOptions.RemoveEmptyEntries))
                 .FirstOrDefault(p => p.Length >= 2 && p[1].Equals(setupName, StringComparison.OrdinalIgnoreCase))?[0];
             string actual = Convert.ToHexString(SHA256.HashData(data));
             if (expected == null || !expected.Equals(actual, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("L'empreinte SHA-256 du fichier téléchargé ne correspond pas : mise à jour annulée.");
+                throw new InvalidDataException(L.T("L'empreinte SHA-256 du fichier téléchargé ne correspond pas : mise à jour annulée.", "The downloaded file's SHA-256 fingerprint doesn't match: update cancelled."));
 
             string dir = Path.Combine(Path.GetTempPath(), "Temperator-update");
             Directory.CreateDirectory(dir);
             string file = Path.Combine(dir, setupName);
             await File.WriteAllBytesAsync(file, data);
 
-            app.Notify("Mise à jour de Temperator", $"Installation de la version {Available}. Le widget revient dans quelques secondes.");
+            app.Notify(L.T("Mise à jour de Temperator", "Updating Temperator"), L.T($"Installation de la version {Available}. Le widget revient dans quelques secondes.", $"Installing version {Available}. The widget will be back in a few seconds."));
             // /update : garde les choix (démarrage, raccourci) ; l'installeur ferme Temperator puis le relance
             Process.Start(new ProcessStartInfo(file, "/S /update") { UseShellExecute = true });
         }
         catch (Exception ex)
         {
             App.Log(ex);
-            app.Notify("Mise à jour impossible", ex is InvalidDataException ? ex.Message : "Le téléchargement a échoué. Réessaie plus tard.", warning: true);
+            app.Notify(L.T("Mise à jour impossible", "Update failed"), ex is InvalidDataException ? ex.Message : L.T("Le téléchargement a échoué. Réessaie plus tard.", "The download failed. Try again later."), warning: true);
         }
         finally { busy = false; }
     }
