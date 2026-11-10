@@ -35,8 +35,10 @@
         </Grid>
 
         <Grid>
-          <TextBlock x:Name="Empty" Text="Lecture des capteurs…" FontSize="13" Foreground="{StaticResource Muted}" Margin="28,0" Visibility="Collapsed"/>
           <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,8,16" Padding="28,0,18,0">
+            <StackPanel>
+            <ContentControl x:Name="HistoryHost"/>
+            <TextBlock x:Name="Empty" Text="Lecture des capteurs…" FontSize="13" Foreground="{StaticResource Muted}" Margin="4,0,0,12" Visibility="Collapsed"/>
             <ItemsControl x:Name="List">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
@@ -77,6 +79,7 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+            </StackPanel>
           </ScrollViewer>
         </Grid>
       </DockPanel>

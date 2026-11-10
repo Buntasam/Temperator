@@ -35,6 +35,24 @@ public sealed class AppSettings
     public bool Locked { get; set; }
     public bool Hidden { get; set; }
 
+    /// <summary>Clics traversants : la souris passe à travers le widget (Ctrl enfoncé pour le saisir).</summary>
+    public bool ClickThrough { get; set; }
+    /// <summary>Raccourci global pour afficher/masquer ("" = aucun).</summary>
+    public string Hotkey { get; set; } = "Ctrl+Alt+T";
+
+    /// <summary>Notification Windows quand un composant reste trop chaud plus de 30 s.</summary>
+    public bool HeatAlerts { get; set; } = true;
+    /// <summary>Seuils « trop chaud » en °C (rouge, flammes, alertes). L'orange commence un peu en dessous.</summary>
+    public double CpuHot { get; set; } = 85;
+    public double GpuHot { get; set; } = 87;
+    public double DiskHot { get; set; } = 60;
+
+    /// <summary>Mises à jour : "auto" (installe toute seule), "notify" (prévient), "off".</summary>
+    public string UpdateMode { get; set; } = "auto";
+    public DateTime? LastUpdateCheck { get; set; }
+    /// <summary>Pour annoncer « Temperator a été mis à jour » au premier lancement d'une nouvelle version.</summary>
+    public string? LastRunVersion { get; set; }
+
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
     /// <summary>Dossier des réglages et du journal : ProgramData (créé par l'installeur), sinon AppData.</summary>
@@ -78,6 +96,10 @@ public sealed class AppSettings
         Opacity = Math.Clamp(Opacity, 0.3, 1.0);
         BackgroundOpacity = Math.Clamp(BackgroundOpacity, 0.0, 1.0);
         IntervalMs = Math.Clamp(IntervalMs, 250, 10000);
+        CpuHot = Math.Clamp(CpuHot, 60, 105);
+        GpuHot = Math.Clamp(GpuHot, 60, 100);
+        DiskHot = Math.Clamp(DiskHot, 40, 80);
+        if (UpdateMode is not ("auto" or "notify" or "off")) UpdateMode = "auto";
         return this;
     }
 

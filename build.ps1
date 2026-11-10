@@ -18,19 +18,14 @@ New-Item -ItemType Directory -Force $app, $payload, $dist | Out-Null
 
 Write-Host "Temperator $Version" -ForegroundColor Cyan
 
-Write-Host '1/3  Application'
+Write-Host '1/2  Application'
 dotnet publish $proj -c Release -o $app -p:Version=$Version --nologo -v quiet
 if ($LASTEXITCODE) { throw 'Échec de la compilation de Temperator.' }
 Copy-Item LICENCES-TIERS.txt $app
 Get-ChildItem $app -Filter *.pdb | Remove-Item
 Compress-Archive -Path "$app\*" -DestinationPath (Join-Path $payload 'Temperator.zip') -CompressionLevel Optimal
 
-Write-Host '2/3  Installeur'
-$script = Get-Content installer\Installer.ps1 -Raw -Encoding UTF8
-$script = $script -replace "(?m)^\`$Version = '[^']*'", "`$`$Version = '$Version'"
-[IO.File]::WriteAllText((Join-Path $payload 'Installer.ps1'), $script, (New-Object Text.UTF8Encoding $true))   # BOM : accents corrects sous PowerShell 5.1
-
-Write-Host '3/3  Temperator-Setup.exe'
+Write-Host '2/2  Temperator-Setup.exe (installeur en C#, contient l''application)'
 dotnet build src\Setup\Setup.csproj -c Release -o (Join-Path $art 'setup') -p:Version=$Version "-p:PayloadDir=$payload" --nologo -v quiet
 if ($LASTEXITCODE) { throw "Échec de la compilation de l'installeur." }
 $exe = Join-Path $dist "Temperator-Setup-$Version.exe"
@@ -40,3 +35,5 @@ $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
 "$hash  $(Split-Path $exe -Leaf)" | Set-Content (Join-Path $dist 'SHA256SUMS.txt') -Encoding ASCII
 Write-Host ("OK  {0}  ({1:N1} Mo)" -f $exe, ((Get-Item $exe).Length / 1MB)) -ForegroundColor Green
 Write-Host "SHA-256 $hash"
+Write-Host 'Pour une release : joins Temperator-Setup-*.exe ET SHA256SUMS.txt (la mise à jour automatique vérifie cette empreinte).'
+

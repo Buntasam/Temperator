@@ -1,21 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Temperator-Setup.exe : un seul fichier à télécharger.
+  <!-- Temperator-Setup.exe : un seul fichier à télécharger, entièrement en C# (plus de PowerShell).
        .NET Framework 4.8 (déjà présent sur tout Windows 10/11) : se lance sans rien installer avant.
-       Contient l'installeur (Installer.ps1) et l'application (Temperator.zip), produits par build.ps1. -->
+       Contient l'application (Temperator.zip), produite par build.ps1. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
     <PlatformTarget>x64</PlatformTarget>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <AssemblyName>Temperator-Setup</AssemblyName>
     <RootNamespace>TemperatorSetup</RootNamespace>
     <ApplicationIcon>..\Temperator\Temperator.ico</ApplicationIcon>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
     <DebugType>none</DebugType>
+    <StartupObject>TemperatorSetup.Program</StartupObject>
 
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <Product>Temperator</Product>
     <Company>Temperator</Company>
     <AssemblyTitle>Installeur de Temperator</AssemblyTitle>
@@ -25,10 +26,16 @@
     <PayloadDir Condition="'$(PayloadDir)' == ''">$(MSBuildThisFileDirectory)..\..\artifacts\payload</PayloadDir>
   </PropertyGroup>
 
+  <!-- Release : demande les droits administrateur. Debug : sans élévation, pour /preview. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
   <ItemGroup>
-    <EmbeddedResource Include="$(PayloadDir)\Installer.ps1" LogicalName="Installer.ps1" />
     <EmbeddedResource Include="$(PayloadDir)\Temperator.zip" LogicalName="Temperator.zip" />
-    <Reference Include="System.Windows.Forms" />
+    <Resource Include="..\Temperator\Temperator.ico" Link="Temperator.ico" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
 
   <Target Name="CheckPayload" BeforeTargets="BeforeBuild">

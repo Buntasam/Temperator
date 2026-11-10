@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using LibreHardwareMonitor.Hardware;
@@ -21,10 +22,68 @@ public partial class MapWindow : Window
         this.app = app;
         InitializeComponent();
         Machine.Text = Fmt.MachineLine();
+        HistoryHost.Content = HistoryCard();
         TitleBar.MouseLeftButtonDown += (_, _) => { try { DragMove(); } catch (InvalidOperationException) { } };
         CloseX.MouseLeftButtonUp += (_, _) => Close();
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
         Refresh();
+    }
+
+    /// <summary>Carte « Historique » : températures et utilisation des 10 dernières minutes.</summary>
+    UIElement HistoryCard()
+    {
+        var h = app.History;
+        var span = History.Keep;
+        bool F() => app.Settings.Fahrenheit;
+        string Deg(double v) => Fmt.Temp((float)v, F()).ToString("0", Fmt.Fr) + "°";
+        Brush cpuB = Theme.Accent, gpuB = Brush("#7AA2FF"), thirdB = Brush("#FFB547");
+
+        var panel = new StackPanel();
+        var head = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
+        head.Children.Add(new Border
+        {
+            CornerRadius = new CornerRadius(6), Padding = new Thickness(7, 1, 7, 2), VerticalAlignment = VerticalAlignment.Center,
+            Background = Brush("#224ED8C0"), BorderBrush = Brush("#554ED8C0"), BorderThickness = new Thickness(1),
+            Child = new TextBlock { Text = "HISTORIQUE", FontFamily = Theme.TitleFont, FontSize = 10.5, FontWeight = FontWeights.Bold, Foreground = Theme.Accent },
+        });
+        head.Children.Add(new TextBlock { Text = "10 dernières minutes", Margin = new Thickness(10, 0, 0, 0), FontSize = 14.5, FontWeight = FontWeights.SemiBold, Foreground = Theme.Text, VerticalAlignment = VerticalAlignment.Center });
+        panel.Children.Add(head);
+
+        panel.Children.Add(Section("TEMPÉRATURES", (cpuB, "CPU"), (gpuB, "GPU"), (thirdB, "Disque")));
+        panel.Children.Add(new HistoryChart(h, span, 20, 90, Deg, null,
+            new ChartLine(h.CpuTemp, cpuB, "CPU"), new ChartLine(h.GpuTemp, gpuB, "GPU"), new ChartLine(h.DiskTemp, thirdB, "Disque")) { Height = 120 });
+        panel.Children.Add(Section("UTILISATION", (cpuB, "CPU"), (gpuB, "GPU"), (thirdB, "RAM")));
+        panel.Children.Add(new HistoryChart(h, span, 0, 100, v => $"{v:0}%", null,
+            new ChartLine(h.CpuLoad, cpuB, "CPU"), new ChartLine(h.GpuLoad, gpuB, "GPU"), new ChartLine(h.RamLoad, thirdB, "RAM")) { Height = 90 });
+
+        return new Border
+        {
+            Margin = new Thickness(0, 0, 0, 12), Padding = new Thickness(16, 13, 16, 12), CornerRadius = new CornerRadius(12),
+            Background = Brush("#0CFFFFFF"), BorderBrush = Brush("#14FFFFFF"), BorderThickness = new Thickness(1), Child = panel,
+        };
+    }
+
+    /// <summary>Titre de section et légende des couleurs.</summary>
+    static UIElement Section(string title, params (Brush Brush, string Name)[] legend)
+    {
+        var row = new DockPanel { Margin = new Thickness(0, 8, 0, 2) };
+        var keys = new StackPanel { Orientation = Orientation.Horizontal };
+        foreach (var (brush, name) in legend)
+        {
+            keys.Children.Add(new Border { Width = 10, Height = 3, CornerRadius = new CornerRadius(1.5), Background = brush, Margin = new Thickness(12, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center });
+            keys.Children.Add(new TextBlock { Text = name, FontSize = 11, Foreground = Theme.Soft });
+        }
+        DockPanel.SetDock(keys, Dock.Right);
+        row.Children.Add(keys);
+        row.Children.Add(new TextBlock { Text = title, FontFamily = Theme.TitleFont, FontSize = 10.5, FontWeight = FontWeights.Bold, Foreground = Theme.Muted });
+        return row;
+    }
+
+    static Brush Brush(string hex)
+    {
+        var b = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+        b.Freeze();
+        return b;
     }
 
     public void Refresh()

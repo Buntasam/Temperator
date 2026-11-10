@@ -10,6 +10,7 @@ sealed class Tray : IDisposable
 {
     readonly Forms.NotifyIcon icon;
     string text = "";
+    Action? onBalloonClick;
 
     public Tray(App app)
     {
@@ -19,6 +20,16 @@ sealed class Tray : IDisposable
             if (e.Button == Forms.MouseButtons.Left) app.ToggleWidget();
             else if (e.Button == Forms.MouseButtons.Right) app.ShowMenu(null);
         };
+        icon.BalloonTipClicked += (_, _) => { var a = onBalloonClick; onBalloonClick = null; a?.Invoke(); };
+        icon.BalloonTipClosed += (_, _) => onBalloonClick = null;
+    }
+
+    /// <summary>Notification Windows (bulle de la zone de notification).</summary>
+    public void Notify(string title, string message, bool warning, Action? onClick)
+    {
+        onBalloonClick = onClick;
+        try { icon.ShowBalloonTip(8000, title, message, warning ? Forms.ToolTipIcon.Warning : Forms.ToolTipIcon.Info); }
+        catch (Exception ex) { App.Log(ex); }
     }
 
     static Icon LoadIcon()

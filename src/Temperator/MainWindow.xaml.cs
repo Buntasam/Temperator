@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -13,8 +14,13 @@ namespace Temperator;
 /// <summary>Le widget, en haut à droite de l'écran.</summary>
 public partial class MainWindow : Window
 {
-    // seuils en °C : orange à partir de Warn, rouge (et flammes) à partir de Hot
-    const float CpuWarn = 70, CpuHot = 85, GpuWarn = 75, GpuHot = 87, DiskWarn = 50, DiskHot = 60;
+    // seuils en °C (réglables) : rouge, flammes et alertes à partir de Hot ; orange un peu avant
+    float CpuHot => (float)app.Settings.CpuHot;
+    float CpuWarn => CpuHot - 15;
+    float GpuHot => (float)app.Settings.GpuHot;
+    float GpuWarn => GpuHot - 12;
+    float DiskHot => (float)app.Settings.DiskHot;
+    float DiskWarn => DiskHot - 10;
 
     readonly App app;
     readonly Palette palette = new();
@@ -24,7 +30,12 @@ public partial class MainWindow : Window
     readonly DispatcherTimer backdropTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
     readonly DropShadowEffect halo = new() { ShadowDepth = 0, BlurRadius = 6, Opacity = 0.6 };
     readonly TopGuard guard;
+    readonly DispatcherTimer ctrlTimer = new() { Interval = TimeSpan.FromMilliseconds(80) };
+    // infobulles avec la courbe des 5 dernières minutes (une par ligne et une par jauge)
+    readonly HistoryTip cpuTip, gpuTip, ramTip, diskTip, gCpuTip, gGpuTip, gRamTip, gDiskTip;
     bool hotCpu, hotGpu, hotDisk;
+    bool menuOpen, passThrough;
+    string? hotkeyRegistered;
     int updates;
 
     // largeur estimée avant le premier affichage, pour éviter un saut de position
@@ -60,13 +71,29 @@ public partial class MainWindow : Window
         guard = new TopGuard(this);
         Bg.SizeChanged += (_, e) => FireLayer.Clip = new RectangleGeometry(new Rect(e.NewSize), 14, 14);
         backdropTimer.Tick += (_, _) => SampleBackdrop(animate: true);
+        ctrlTimer.Tick += (_, _) => UpdateClickThrough();
+
+        var h = app.History;
+        bool F() => app.Settings.Fahrenheit;
+        cpuTip = new(h, h.CpuTemp, true, F, () => CpuHot); gCpuTip = new(h, h.CpuTemp, true, F, () => CpuHot);
+        gpuTip = new(h, h.GpuTemp, true, F, () => GpuHot); gGpuTip = new(h, h.GpuTemp, true, F, () => GpuHot);
+        ramTip = new(h, h.RamLoad, false, F, null); gRamTip = new(h, h.RamLoad, false, F, null);
+        diskTip = new(h, h.DiskTemp, true, F, () => DiskHot); gDiskTip = new(h, h.DiskTemp, true, F, () => DiskHot);
+        Tip(cpu.Root, cpuTip); Tip(gpu.Root, gpuTip); Tip(ram.Root, ramTip); Tip(disk.Root, diskTip);
+        Tip(gCpu.Root, gCpuTip); Tip(gGpu.Root, gGpuTip); Tip(gRam.Root, gRamTip); Tip(gDisk.Root, gDiskTip);
 
         var s = app.Settings;
         if (s.Left is double l && s.Top is double t) { Left = l; Top = t; }
         else { Left = SystemParameters.WorkArea.Right - EstimatedWidth + 4; Top = SystemParameters.WorkArea.Top - 4; }
         ApplySettings();
 
-        SourceInitialized += (_, _) => Native.MakeToolWindow(this);
+        SourceInitialized += (_, _) =>
+        {
+            Native.MakeToolWindow(this);
+            HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WndProc);
+            RegisterHotkey();
+            if (app.Settings.ClickThrough) UpdateClickThrough();
+        };
         Loaded += (_, _) => EnsureOnScreen();
         SizeChanged += (_, e) =>
         {
@@ -185,14 +212,69 @@ public partial class MainWindow : Window
         }
         halo.Opacity = HaloOpacity;
         UpdateBackdropTimer();
+        RegisterHotkey();
+        if (s.ClickThrough && !app.Snapshotting) ctrlTimer.Start();
+        else ctrlTimer.Stop();
+        UpdateClickThrough();
         if (!s.FireAnimation || s.Gauges) fire.Set(0);
         if (!s.FireAnimation || !s.Gauges) foreach (var t in new[] { gCpu, gGpu, gRam, gDisk, gFan }) t.SetFire(0);
     }
 
     double HaloOpacity => BgOpacity < 0.3 ? 0.95 : palette.IsLight ? 0.75 : 0.6;
 
-    /// <summary>Le menu du widget est ouvert : la garde du premier plan ne doit pas passer devant.</summary>
-    public void PauseTopGuard(bool paused) => guard.Paused = paused;
+    /// <summary>Menu ouvert : la garde du premier plan ne passe pas devant, et le widget reste cliquable.</summary>
+    public void MenuOpen(bool open)
+    {
+        menuOpen = open;
+        guard.Paused = open;
+        UpdateClickThrough();
+    }
+
+    // ------------------------------------------------------------------ clics traversants : la souris passe à travers, sauf Ctrl enfoncé
+
+    void UpdateClickThrough()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        bool want = app.Settings.ClickThrough && !menuOpen && !Native.CtrlDown();
+        if (want == passThrough) return;
+        passThrough = want;
+        Native.SetClickThrough(hwnd, want);
+    }
+
+    // ------------------------------------------------------------------ raccourci clavier global : afficher / masquer
+
+    const int HotkeyId = 0x5445;
+
+    void RegisterHotkey()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        string wanted = app.Snapshotting ? "" : app.Settings.Hotkey ?? "";
+        if (hwnd == IntPtr.Zero || wanted == hotkeyRegistered) return;
+        Native.UnregisterHotKey(hwnd, HotkeyId);
+        hotkeyRegistered = wanted;
+        if (wanted.Length == 0) return;
+        if (!Native.ParseHotkey(wanted, out uint mods, out uint key) || !Native.RegisterHotKey(hwnd, HotkeyId, mods | Native.MOD_NOREPEAT, key))
+            app.Notify("Raccourci indisponible",
+                $"{wanted.Replace("Shift", "Maj")} est déjà utilisé par une autre application. Choisis-en un autre : clic droit → Raccourci afficher / masquer.",
+                warning: true);
+    }
+
+    IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == Native.WM_HOTKEY && wParam.ToInt32() == HotkeyId)
+        {
+            app.ToggleWidget();
+            handled = true;
+        }
+        return IntPtr.Zero;
+    }
+
+    static void Tip(FrameworkElement element, HistoryTip tip)
+    {
+        element.ToolTip = tip;
+        ToolTipService.SetShowDuration(element, 60000);
+    }
 
     void UpdateBackdropTimer()
     {
@@ -252,23 +334,23 @@ public partial class MainWindow : Window
         cpu.Visible = s.ShowCpu;
         SetTemp(cpu, r.CpuTemp, f, CpuWarn, CpuHot);
         cpu.SetLoad(r.CpuLoad);
-        cpu.Root.ToolTip = Lines(r.CpuName, r.CpuPower is float p ? $"Consommation : {p.ToString("0.#", Fmt.Fr)} W" : null);
+        cpuTip.Text = gCpuTip.Text = Lines(r.CpuName, r.CpuPower is float p ? $"Consommation : {p.ToString("0.#", Fmt.Fr)} W" : null);
 
         gpu.Visible = s.ShowGpu && r.GpuName != null;
         SetTemp(gpu, r.GpuTemp, f, GpuWarn, GpuHot);
         gpu.SetLoad(r.GpuLoad);
-        gpu.Root.ToolTip = r.GpuName;
+        gpuTip.Text = gGpuTip.Text = r.GpuName;
 
         ram.Visible = s.ShowRam && r.RamLoad.HasValue;
         ram.SetValue(r.RamUsed is float u ? u.ToString(u >= 100 ? "0" : "0.0", Fmt.Fr) : "—", " Go", palette.Text);
         ram.SetLoad(r.RamLoad);
-        ram.Root.ToolTip = r.RamUsed is float used && r.RamTotal is float total
-            ? $"{used.ToString("0.0", Fmt.Fr)} Go utilisés sur {total.ToString("0.0", Fmt.Fr)} Go" : null;
+        ramTip.Text = gRamTip.Text = r.RamUsed is float used && r.RamTotal is float total
+            ? $"Mémoire : {used.ToString("0.0", Fmt.Fr)} Go utilisés sur {total.ToString("0.0", Fmt.Fr)} Go" : "Mémoire";
 
         disk.Visible = s.ShowDisk && (r.DiskTemp.HasValue || r.DiskLoad.HasValue);
         SetTemp(disk, r.DiskTemp, f, DiskWarn, DiskHot);
         disk.SetLoad(r.DiskLoad);
-        disk.Root.ToolTip = r.DiskName is null ? "Activité du disque le plus sollicité" : $"Le plus chaud : {r.DiskName}\nBarre : activité du disque le plus sollicité";
+        diskTip.Text = gDiskTip.Text = r.DiskName is null ? "Activité du disque le plus sollicité" : $"Le plus chaud : {r.DiskName}\nUtilisation : activité du disque le plus sollicité";
 
         fan.Visible = s.ShowFan && r.FanRpm.HasValue;
         fan.SetValue(r.FanRpm is float rpm ? rpm.ToString("N0", Fmt.Fr) : "—", " tr/min", palette.Text);
@@ -317,23 +399,19 @@ public partial class MainWindow : Window
 
         gCpu.Visible = s.ShowCpu;
         var cb = palette.ForTemp(r.CpuTemp, CpuWarn, CpuHot);
-        gCpu.Set(T(r.CpuTemp), deg, cb, Scale(r.CpuTemp, 100), cb, P(r.CpuLoad));
-        gCpu.ToolTip = cpu.Root.ToolTip;
+        gCpu.Set(T(r.CpuTemp), deg, cb, Scale(r.CpuTemp, Math.Max(100, CpuHot + 10)), cb, P(r.CpuLoad));
 
         gGpu.Visible = s.ShowGpu && r.GpuName != null;
         var gb = palette.ForTemp(r.GpuTemp, GpuWarn, GpuHot);
-        gGpu.Set(T(r.GpuTemp), deg, gb, Scale(r.GpuTemp, 95), gb, P(r.GpuLoad));
-        gGpu.ToolTip = r.GpuName;
+        gGpu.Set(T(r.GpuTemp), deg, gb, Scale(r.GpuTemp, Math.Max(95, GpuHot + 8)), gb, P(r.GpuLoad));
 
         gRam.Visible = s.ShowRam && r.RamLoad.HasValue;
         gRam.Set(r.RamUsed is float u ? u.ToString(u >= 100 ? "0" : "0.0", Fmt.Fr) : "—", " Go", palette.Text,
                  (r.RamLoad ?? 0) / 100.0, r.RamLoad >= 90 ? palette.Warn : palette.Accent, P(r.RamLoad));
-        gRam.ToolTip = ram.Root.ToolTip;
 
         gDisk.Visible = s.ShowDisk && (r.DiskTemp.HasValue || r.DiskLoad.HasValue);
         var db = palette.ForTemp(r.DiskTemp, DiskWarn, DiskHot);
-        gDisk.Set(T(r.DiskTemp), deg, db, Scale(r.DiskTemp, 70), db, P(r.DiskLoad));
-        gDisk.ToolTip = disk.Root.ToolTip;
+        gDisk.Set(T(r.DiskTemp), deg, db, Scale(r.DiskTemp, Math.Max(70, DiskHot + 10)), db, P(r.DiskLoad));
 
         gFan.Visible = s.ShowFan && r.FanRpm.HasValue;
         gFan.Set(r.FanRpm is float rpm ? rpm.ToString("N0", Fmt.Fr) : "—", "", palette.Text, (r.FanRpm ?? 0) / 4000.0, palette.Accent, "tr/min");

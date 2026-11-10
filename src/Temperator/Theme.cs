@@ -148,6 +148,56 @@ static class Native
         SetWindowLongPtr(h, GWL_EXSTYLE, new IntPtr((ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW));
     }
 
+    // ------------------------------------------------------------------ clics traversants
+
+    const long WS_EX_TRANSPARENT = 0x20;
+
+    [DllImport("user32.dll")]
+    static extern short GetAsyncKeyState(int key);
+
+    public static bool CtrlDown() => (GetAsyncKeyState(0x11) & 0x8000) != 0;   // VK_CONTROL
+
+    /// <summary>La souris passe à travers la fenêtre (la fenêtre est déjà « layered » : WPF transparent).</summary>
+    public static void SetClickThrough(IntPtr hwnd, bool on)
+    {
+        long ex = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
+        ex = on ? ex | WS_EX_TRANSPARENT : ex & ~WS_EX_TRANSPARENT;
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(ex));
+    }
+
+    // ------------------------------------------------------------------ raccourci clavier global
+
+    public const int WM_HOTKEY = 0x0312;
+    public const uint MOD_ALT = 0x1, MOD_CONTROL = 0x2, MOD_SHIFT = 0x4, MOD_WIN = 0x8, MOD_NOREPEAT = 0x4000;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool RegisterHotKey(IntPtr hwnd, int id, uint modifiers, uint key);
+
+    [DllImport("user32.dll")]
+    public static extern bool UnregisterHotKey(IntPtr hwnd, int id);
+
+    /// <summary>"Ctrl+Alt+T" → modificateurs + touche (lettre ou chiffre).</summary>
+    public static bool ParseHotkey(string text, out uint mods, out uint key)
+    {
+        mods = 0;
+        key = 0;
+        foreach (var part in text.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            switch (part.ToLowerInvariant())
+            {
+                case "ctrl": mods |= MOD_CONTROL; break;
+                case "alt": mods |= MOD_ALT; break;
+                case "shift" or "maj": mods |= MOD_SHIFT; break;
+                case "win": mods |= MOD_WIN; break;
+                default:
+                    if (part.Length != 1 || !char.IsLetterOrDigit(part[0])) return false;
+                    key = char.ToUpperInvariant(part[0]);
+                    break;
+            }
+        }
+        return key != 0 && mods != 0;
+    }
+
     public static readonly Lazy<bool> PawnIOInstalled = new(() =>
     {
         try { using var k = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\PawnIO"); return k != null; }

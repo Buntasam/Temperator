@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Principal;
 using System.Threading;
@@ -6,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -24,6 +26,11 @@ public partial class App : Application
     public bool Demo { get; private set; }
     /// <summary>Mode capture : le widget reste hors de l'écran.</summary>
     public bool Snapshotting { get; private set; }
+
+    /// <summary>10 dernières minutes de températures et d'utilisation (infobulles, plan du PC).</summary>
+    internal History History { get; } = new();
+    Updater updater = null!;
+    readonly Dictionary<string, DateTime> hotSince = new(), lastAlert = new();
 
     MainWindow widget = null!;
     MapWindow? map;
@@ -58,14 +65,56 @@ public partial class App : Application
         Hub.Updated += r =>
         {
             Last = r;
+            History.Add(r);
             widget.Apply(r);
             map?.Refresh();
             tray?.Update(r, Settings);
+            CheckHeat(r);
         };
         // toujours visible au lancement (masqué = seulement pour la session en cours)
         Settings.Hidden = false;
         widget.Show();
         tray = new Tray(this);
+
+        if (Settings.LastRunVersion is string previous && previous != Version)
+            Notify($"Temperator mis à jour en {Version}", "Clic droit sur le widget pour voir les réglages.");
+        Settings.LastRunVersion = Version;
+        Settings.Save();
+        updater = new Updater(this);
+        updater.Start();
+    }
+
+    /// <summary>Notification Windows (zone de notification) ; un clic dessus lance onClick.</summary>
+    public void Notify(string title, string message, bool warning = false, Action? onClick = null) =>
+        tray?.Notify(title, message, warning, onClick);
+
+    // ------------------------------------------------------------------ alertes : trop chaud pendant plus de 30 s (même widget masqué)
+
+    void CheckHeat(Readings r)
+    {
+        if (!Settings.HeatAlerts || !r.Ready) return;
+        Heat("CPU", "Processeur", r.CpuTemp, Settings.CpuHot);
+        Heat("GPU", "Carte graphique", r.GpuTemp, Settings.GpuHot);
+        Heat("DISK", "Disque", r.DiskTemp, Settings.DiskHot);
+    }
+
+    void Heat(string key, string name, float? celsius, double limit)
+    {
+        var now = DateTime.Now;
+        if (celsius is not float c || c < limit)
+        {
+            hotSince.Remove(key);
+            return;
+        }
+        if (!hotSince.TryGetValue(key, out var since)) { hotSince[key] = now; return; }
+        if (now - since < TimeSpan.FromSeconds(30)) return;
+        if (lastAlert.TryGetValue(key, out var last) && now - last < TimeSpan.FromMinutes(10)) return;   // pas plus d'une alerte toutes les 10 min
+        lastAlert[key] = now;
+        bool f = Settings.Fahrenheit;
+        string unit = f ? "°F" : "°C";
+        Notify($"{name} trop chaud : {Fmt.Temp(c, f):0} {unit}",
+            $"Au-dessus de {Fmt.Temp((float)limit, f):0} {unit} depuis plus de 30 secondes. Vérifie la ventilation et ce qui tourne. Clique pour ouvrir le plan du PC.",
+            warning: true, onClick: ShowMap);
     }
 
     EventWaitHandle? Listen(string name, Action action)
@@ -140,8 +189,8 @@ public partial class App : Application
     public void ShowMenu(UIElement? target)
     {
         var menu = BuildMenu();
-        menu.Opened += (_, _) => widget.PauseTopGuard(true);
-        menu.Closed += (_, _) => { widget.PauseTopGuard(false); Settings.Save(); };   // enregistre aussi les curseurs
+        menu.Opened += (_, _) => widget.MenuOpen(true);
+        menu.Closed += (_, _) => { widget.MenuOpen(false); Settings.Save(); };   // enregistre aussi les curseurs
         menu.Placement = PlacementMode.MousePoint;
         if (target != null) menu.PlacementTarget = target;
         else Native.SetForegroundWindow(new WindowInteropHelper(widget).Handle);   // pour que le menu se ferme en cliquant ailleurs
@@ -153,6 +202,13 @@ public partial class App : Application
         var s = Settings;
         var m = new ContextMenu();
 
+        if (updater.Available is string next)
+        {
+            var up = Item($"Mettre à jour vers la version {next}", () => _ = updater.Install());
+            up.FontWeight = FontWeights.SemiBold;
+            up.Foreground = Theme.Accent;
+            m.Items.Add(up);
+        }
         var plan = Item("Plan du PC…", ShowMap);
         plan.FontWeight = FontWeights.SemiBold;
         m.Items.Add(plan);
@@ -170,7 +226,7 @@ public partial class App : Application
             ("Lignes et barres", 0), ("Jauges rondes", 1)));
         m.Items.Add(Choice("Taille", s.Scale, v => s.Scale = v,
             ("Petite", 0.85), ("Normale", 1.0), ("Grande", 1.2), ("Très grande", 1.45)));
-        m.Items.Add(SliderMenu("Opacité générale", s.Opacity, 0.3, v => s.Opacity = v));
+        m.Items.Add(Sliders("Opacité générale", Percent("", s.Opacity, 0.3, v => s.Opacity = v)));
         m.Items.Add(Choice("Actualisation", s.IntervalMs, v => s.IntervalMs = v,
             ("Toutes les 0,5 s", 500), ("Chaque seconde", 1000), ("Toutes les 2 s", 2000), ("Toutes les 5 s", 5000)));
         m.Items.Add(Toggle("Degrés Fahrenheit", s.Fahrenheit, v => s.Fahrenheit = v));
@@ -178,39 +234,79 @@ public partial class App : Application
 
         m.Items.Add(Choice("Fond", s.Transparent ? 2 : s.Translucent ? 1 : 0, v => { s.Translucent = v == 1; s.Transparent = v == 2; },
             ("Opaque", 0), ("Translucide (s'adapte au fond)", 1), ("Aucun fond, 100 % transparent", 2)));
-        m.Items.Add(SliderMenu("Opacité du fond", s.BackgroundOpacity, 0, v => s.BackgroundOpacity = v, enabled: !s.Transparent));
+        var bgOpacity = Sliders("Opacité du fond", Percent("", s.BackgroundOpacity, 0, v => s.BackgroundOpacity = v));
+        bgOpacity.IsEnabled = !s.Transparent;
+        m.Items.Add(bgOpacity);
         m.Items.Add(Toggle("Flammes quand c'est trop chaud", s.FireAnimation, v => s.FireAnimation = v));
+        var heat = Sliders("Seuils « trop chaud »",
+            Degrees("CPU", s.CpuHot, 60, 105, v => s.CpuHot = v),
+            Degrees("GPU", s.GpuHot, 60, 100, v => s.GpuHot = v),
+            Degrees("Disque", s.DiskHot, 40, 80, v => s.DiskHot = v));
+        heat.Items.Add(new Separator());
+        heat.Items.Add(Toggle("Notification si trop chaud plus de 30 s", s.HeatAlerts, v => s.HeatAlerts = v));
+        m.Items.Add(heat);
         m.Items.Add(new Separator());
 
         m.Items.Add(Choice("Premier plan", !s.Topmost ? 0 : s.TopmostForce ? 2 : 1, v => { s.Topmost = v > 0; s.TopmostForce = v == 2; },
             ("Normal", 0), ("Toujours au premier plan", 1), ("Au-dessus de tout, quoi qu'il arrive", 2)));
+        m.Items.Add(Toggle("Clics traversants (maintiens Ctrl pour le saisir)", s.ClickThrough, v => s.ClickThrough = v));
         m.Items.Add(Toggle("Verrouiller la position", s.Locked, v => s.Locked = v));
+        m.Items.Add(Choice("Raccourci afficher / masquer", s.Hotkey, v => s.Hotkey = v,
+            ("Aucun", ""), ("Ctrl+Alt+T", "Ctrl+Alt+T"), ("Ctrl+Maj+T", "Ctrl+Shift+T"), ("Ctrl+Alt+H", "Ctrl+Alt+H")));
         m.Items.Add(Item("Replacer en haut à droite", () => widget.ResetPosition()));
         m.Items.Add(new Separator());
 
+        var updates = Choice("Mises à jour", s.UpdateMode, v => s.UpdateMode = v,
+            ("Automatiques", Updater.Auto), ("Me prévenir seulement", Updater.NotifyOnly), ("Désactivées", Updater.Off));
+        updates.Items.Add(new Separator());
+        updates.Items.Add(Item("Rechercher maintenant", () => _ = updater.Check(manual: true)));
+        updates.Items.Add(new MenuItem { Header = $"Version installée : {Version}", IsEnabled = false });
+        m.Items.Add(updates);
         m.Items.Add(Item(widget.IsVisible ? "Masquer le widget" : "Afficher le widget", ToggleWidget));
         m.Items.Add(Item("Quitter Temperator", Quit));
         return m;
     }
 
-    /// <summary>Sous-menu avec un curseur de 0 (ou min) à 100 % : le widget change en direct, enregistré à la fermeture du menu.</summary>
-    MenuItem SliderMenu(string text, double value, double min, Action<double> set, bool enabled = true)
+    /// <summary>Sous-menu de curseurs : le widget change en direct, enregistré à la fermeture du menu.</summary>
+    static MenuItem Sliders(string text, params MenuItem[] rows)
     {
-        var sub = new MenuItem { Header = text, IsEnabled = enabled };
-        var label = new TextBlock { Width = 44, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Foreground = Theme.Soft, Text = $"{value * 100:0} %" };
-        var slider = new Slider { Minimum = min, Maximum = 1, Value = value, Width = 170, IsMoveToPointEnabled = true, SmallChange = 0.05, LargeChange = 0.1, VerticalAlignment = VerticalAlignment.Center };
+        var sub = new MenuItem { Header = text };
+        foreach (var r in rows) sub.Items.Add(r);
+        return sub;
+    }
+
+    MenuItem Percent(string name, double value, double min, Action<double> set) =>
+        SliderRow(name, value, min, 1, 0.05, v => $"{v * 100:0} %", set);
+
+    MenuItem Degrees(string name, double value, double min, double max, Action<double> set) =>
+        SliderRow(name, value, min, max, 1, v => Settings.Fahrenheit ? $"{Fmt.Temp((float)v, true):0} °F" : $"{v:0} °C", v => set(Math.Round(v)));
+
+    MenuItem SliderRow(string name, double value, double min, double max, double step, Func<double, string> format, Action<double> set)
+    {
+        var label = new TextBlock { Width = 50, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Foreground = Theme.Soft, Text = format(value) };
+        var slider = new Slider
+        {
+            Minimum = min, Maximum = max, Value = value, Width = 170, IsMoveToPointEnabled = true,
+            SmallChange = step, LargeChange = step * 5, VerticalAlignment = VerticalAlignment.Center,
+        };
         slider.ValueChanged += (_, e) =>
         {
-            label.Text = $"{e.NewValue * 100:0} %";
+            label.Text = format(e.NewValue);
             set(e.NewValue);
             widget.ApplySettings();
+            widget.Apply(Last);
         };
         var row = new DockPanel { Margin = new Thickness(-14, 2, 0, 2) };
         DockPanel.SetDock(label, Dock.Right);
         row.Children.Add(label);
+        if (name.Length > 0)
+        {
+            var title = new TextBlock { Text = name, Width = 52, VerticalAlignment = VerticalAlignment.Center, Foreground = Theme.Muted };
+            DockPanel.SetDock(title, Dock.Left);
+            row.Children.Add(title);
+        }
         row.Children.Add(slider);
-        sub.Items.Add(new MenuItem { Header = row, StaysOpenOnClick = true });
-        return sub;
+        return new MenuItem { Header = row, StaysOpenOnClick = true };
     }
 
     static MenuItem Item(string text, Action action)
@@ -257,6 +353,8 @@ public partial class App : Application
             Directory.CreateDirectory(dir);
             Settings = new AppSettings { ShowFan = true, Gauges = false };
             Hub = new SensorHub(Dispatcher);
+            updater = new Updater(this);
+            if (Demo) History.FillDemo();
             widget = new MainWindow(this) { Left = -20000, Top = -20000 };
             var ready = new TaskCompletionSource();
             int n = 0;
@@ -278,8 +376,7 @@ public partial class App : Application
                     GpuName = Last.GpuName ?? "Carte graphique", GpuTemp = 64, GpuLoad = 41,
                     RamUsed = 11.4f, RamTotal = 15.7f, RamLoad = 72, DiskTemp = 41, DiskLoad = 6, DiskName = "SSD", FanRpm = 1850,
                 };
-                Hub.Dispose();
-                widget.Apply(Last);
+                widget.Apply(Last);   // les capteurs continuent (pour le plan du PC), mais le widget garde les valeurs d'exemple
             }
 
             widget.Show();
@@ -355,6 +452,28 @@ public partial class App : Application
                 widget.ApplyBackdrop(Backdrop.Of(Palette.Mix(a, b, 0.5)), animate: false);
                 await Task.Delay(300);
                 SavePng(widget, Path.Combine(dir, "widget-jauges-fond-40.png"), new LinearGradientBrush(a, b, 35));
+            }
+
+            if (Demo)   // infobulle avec la courbe des 5 dernières minutes
+            {
+                var tip = new HistoryTip(History, History.CpuTemp, true, () => false, () => Settings.CpuHot) { Text = "11th Gen Intel Core i5-11400H\nConsommation : 21,5 W" };
+                var bubble = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1D, 0x24)), BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, 0xF1, 0xF3, 0xF6)),
+                    BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 6, 10, 6), Child = tip,
+                };
+                TextElement.SetForeground(bubble, Theme.Text);
+                TextElement.SetFontSize(bubble, 12);
+                TextElement.SetFontFamily(bubble, new FontFamily("Segoe UI"));
+                var host = new Window
+                {
+                    WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent, ShowInTaskbar = false,
+                    SizeToContent = SizeToContent.WidthAndHeight, Left = -20000, Top = -20000, Content = bubble, ShowActivated = false,
+                };
+                host.Show();
+                await Task.Delay(400);
+                SavePng(host, Path.Combine(dir, "infobulle-historique.png"));
+                host.Close();
             }
 
             // test du lecteur d'écran sur une zone réelle
