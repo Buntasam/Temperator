@@ -22,10 +22,18 @@ Les températures et l'utilisation de ton PC, toujours à l'écran : un petit wi
   **consommation** du processeur et de la carte graphique en watts.
 - **Couleurs** : turquoise quand tout va bien, orange quand ça chauffe, rouge quand c'est trop chaud.
   La couleur d'accent se change (bleu, violet, rose, vert, orange, blanc).
-- **Jauges rondes** (par défaut) ou **lignes et barres**.
-- Tu choisis la **carte graphique**, le **disque** et la **carte réseau** affichés, s'il y en a plusieurs.
+- **FPS** (images par seconde) du jeu en plein écran : jeux DirectX 9 à 12.
+- **Jauges rondes** (par défaut), **lignes et barres**, ou **barre fine** sur une seule ligne.
+- Tu choisis **l'ordre** des éléments, et la **carte graphique**, le **disque** et la **carte réseau** affichés.
+- **Thème sombre, clair, ou comme Windows** pour le fond opaque.
 
 <p align="center"><img src="docs/widget-jauges-tout.png" width="620" alt="Toutes les informations, couleur d'accent violette"></p>
+<p align="center"><img src="docs/widget-barre.png" width="720" alt="La barre fine"></p>
+<p align="center">
+  <img src="docs/widget-clair.png" width="420" alt="Thème clair">
+  <img src="docs/widget-jeu.png" width="250" alt="Profil Jeu avec les FPS">
+</p>
+<p align="center"><sub>Barre fine · thème clair · profil « Jeu » avec les FPS</sub></p>
 
 ## Ce qu'il sait faire
 
@@ -34,8 +42,9 @@ Les températures et l'utilisation de ton PC, toujours à l'écran : un petit wi
 - **Alerte Windows** quand un composant reste trop chaud plus de 30 secondes, même widget masqué.
 - **Historique** : la courbe des 5 dernières minutes au survol d'une jauge, et dans le *Plan du PC* les 10 dernières minutes,
   la dernière heure ou les 24 dernières heures (conservées après un redémarrage), avec **export CSV** pour Excel.
-- **Mode jeu** : quand un jeu ou une vidéo passe en plein écran, le widget devient compact (CPU et GPU seulement, fond léger),
-  ou se masque, au choix.
+- **Profil « Jeu »** : quand un jeu ou une vidéo passe en plein écran, le widget change tout seul de réglages
+  (par défaut CPU, GPU et FPS, plus petit, fond léger, toujours devant), puis revient à son profil « Bureau ».
+  Tu choisis ce qu'il affiche, sa disposition, sa taille et son fond. Il peut aussi se masquer, ou ne rien changer.
 - **Fond opaque, translucide ou absent** : en translucide et sans fond, le widget regarde l'écran autour de lui et passe en
   couleurs claires ou sombres pour rester lisible. L'**opacité du fond** se règle à part.
 - **Au-dessus de tout, quoi qu'il arrive** : il repasse devant toute fenêtre qui le recouvre.
@@ -126,10 +135,15 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 |---|---|
 | `src/Temperator` | le widget (WPF, .NET 10, [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)) |
 | `src/Setup` | `Temperator-Setup.exe` : l'installeur (C#, WPF, .NET Framework 4.8), qui contient l'application |
+| `tests/Temperator.Tests` | les tests (xUnit) |
 | `tools/make-icon.ps1` | génère l'icône |
+
+Tests : `dotnet test tests/Temperator.Tests` (mises à jour, mise en forme, réglages, historique, seuils…).
 
 Captures d'écran : `Temperator.exe --snapshot <dossier> --demo` (ajoute `--en` pour l'anglais),
 et `Temperator-Setup.exe /preview <dossier> /lang fr|en` (version Debug) pour l'installeur.
+
+Vérifier le compteur de FPS (en administrateur) : `Temperator.exe --fps-test <fichier>`.
 
 Les réglages sont dans `%ProgramData%\Temperator\settings.json`, l'historique dans `historique.csv` et les erreurs dans
 `erreurs.log`, au même endroit.

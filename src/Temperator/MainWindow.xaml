@@ -35,6 +35,7 @@
         </DockPanel>
         <StackPanel x:Name="Rows"/>
         <StackPanel x:Name="Gauges" Orientation="Horizontal" HorizontalAlignment="Center" Margin="-3,2,-3,0" Visibility="Collapsed"/>
+        <StackPanel x:Name="BarPanel" Orientation="Horizontal" Margin="0,0,-12,0" Visibility="Collapsed"/>
         <TextBlock x:Name="Notice" Visibility="Collapsed" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,1" MaxWidth="250" HorizontalAlignment="Left"/>
       </StackPanel>
     </Border>

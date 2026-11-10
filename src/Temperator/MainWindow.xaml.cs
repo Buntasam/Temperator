@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -14,31 +16,32 @@ namespace Temperator;
 /// <summary>Le widget, en haut à droite de l'écran.</summary>
 public partial class MainWindow : Window
 {
-    // seuils en °C (réglables) : rouge, flammes et alertes à partir de Hot ; orange un peu avant
-    float CpuHot => (float)app.Settings.CpuHot;
-    float CpuWarn => CpuHot - 15;
-    float GpuHot => (float)app.Settings.GpuHot;
-    float GpuWarn => GpuHot - 12;
-    float DiskHot => (float)app.Settings.DiskHot;
-    float DiskWarn => DiskHot - 10;
+    /// <summary>Un élément du widget, sous ses trois formes (ligne, jauge, barre fine).</summary>
+    sealed class Item
+    {
+        public required string Key;
+        public required MetricRow Row;
+        public required GaugeTile Tile;
+        public required BarItem Bar;
+        public HistoryTip? RowTip, TileTip;
+        public bool Hot;
+    }
 
     readonly App app;
     readonly Palette palette = new();
-    readonly MetricRow cpu, gpu, ram, disk, fan, net, bat, pow;
-    readonly GaugeTile gCpu, gGpu, gRam, gDisk, gFan, gNet, gBat, gPow;
+    readonly MetricViews views;
+    readonly Dictionary<string, Item> items = new();
     readonly Fire fire;
+    readonly FpsCounter fps = new();
     readonly DispatcherTimer backdropTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
-    readonly DropShadowEffect halo = new() { ShadowDepth = 0, BlurRadius = 6, Opacity = 0.6 };
-    readonly TopGuard guard;
     readonly DispatcherTimer ctrlTimer = new() { Interval = TimeSpan.FromMilliseconds(80) };
     readonly DispatcherTimer gameTimer = new() { Interval = TimeSpan.FromSeconds(1) };
-    // infobulles avec la courbe des 5 dernières minutes (une par ligne et une par jauge)
-    readonly HistoryTip cpuTip, gpuTip, ramTip, diskTip, gCpuTip, gGpuTip, gRamTip, gDiskTip;
-    bool hotCpu, hotGpu, hotDisk;
+    readonly DropShadowEffect halo = new() { ShadowDepth = 0, BlurRadius = 6, Opacity = 0.6 };
+    readonly TopGuard guard;
     bool menuOpen, passThrough;
     bool gameActive, hiddenByGame;
-    string? hotkeyRegistered;
-    float netPeak = 1e6f, powerPeak = 150;
+    int gamePid;
+    string? hotkeyRegistered, orderApplied;
     int updates;
 
     // largeur estimée avant le premier affichage, pour éviter un saut de position
@@ -48,23 +51,37 @@ public partial class MainWindow : Window
     {
         this.app = app;
         InitializeComponent();
+        views = new MetricViews(palette, () => app.Settings);
 
-        string diskLabel = L.T("DISQUE", "DISK"), fanLabel = L.T("VENTILO", "FAN"), netLabel = L.T("RÉSEAU", "NET"),
-               batLabel = L.T("BATTERIE", "BATTERY"), powLabel = L.T("CONSO", "POWER");
-        cpu = new("CPU", palette); gpu = new("GPU", palette); ram = new("RAM", palette); disk = new(diskLabel, palette);
-        fan = new(fanLabel, palette); net = new(netLabel, palette); bat = new(batLabel, palette); pow = new(powLabel, palette);
-        foreach (var row in new[] { cpu, gpu, ram, disk, fan, net, bat, pow }) Rows.Children.Add(row.Root);
-        fan.Wide(); net.Wide(); pow.Wide();
-        foreach (var row in new[] { gpu, disk, fan, net, bat, pow }) row.Visible = false;   // affichés dès qu'on sait qu'ils existent
-        cpu.Visible = app.Settings.ShowCpu;
-        ram.Visible = app.Settings.ShowRam;
+        var h = app.History;
+        bool F() => app.Settings.Fahrenheit;
+        foreach (var key in MetricKeys.All)
+        {
+            string label = Label(key);
+            var item = new Item { Key = key, Row = new MetricRow(label, palette), Tile = new GaugeTile(label, palette), Bar = new BarItem(label, palette) };
+            if (key is MetricKeys.Fan or MetricKeys.Net or MetricKeys.Power or MetricKeys.Fps) item.Row.Wide();
 
-        gCpu = new("CPU", palette); gGpu = new("GPU", palette); gRam = new("RAM", palette); gDisk = new(diskLabel, palette);
-        gFan = new(fanLabel, palette); gNet = new(netLabel, palette); gBat = new(batLabel, palette); gPow = new(powLabel, palette);
-        foreach (var tile in Tiles) Gauges.Children.Add(tile.Root);
-        foreach (var tile in new[] { gGpu, gDisk, gFan, gNet, gBat, gPow }) tile.Visible = false;
-        gCpu.Visible = app.Settings.ShowCpu;
-        gRam.Visible = app.Settings.ShowRam;
+            // infobulles avec la courbe des 5 dernières minutes
+            (Series series, bool temp, Func<double>? limit)? history = key switch
+            {
+                MetricKeys.Cpu => (h.CpuTemp, true, () => views.CpuHot),
+                MetricKeys.Gpu => (h.GpuTemp, true, () => views.GpuHot),
+                MetricKeys.Disk => (h.DiskTemp, true, () => views.DiskHot),
+                MetricKeys.Ram => (h.RamLoad, false, null),
+                _ => null,
+            };
+            if (history is var (series, temp, limit))
+            {
+                item.RowTip = new HistoryTip(h, series, temp, F, limit);
+                item.TileTip = new HistoryTip(h, series, temp, F, limit);
+                Tip(item.Row.Root, item.RowTip);
+                Tip(item.Tile.Root, item.TileTip);
+            }
+            // affichés dès qu'on sait qu'ils existent (sauf CPU et RAM, toujours là)
+            bool start = key is MetricKeys.Cpu or MetricKeys.Ram && app.Settings.Shows(key);
+            item.Row.Visible = item.Tile.Visible = item.Bar.Visible = start;
+            items[key] = item;
+        }
 
         Card.BorderBrush = palette.Line;
         LogoArc.Stroke = palette.Accent;
@@ -78,15 +95,6 @@ public partial class MainWindow : Window
         backdropTimer.Tick += (_, _) => SampleBackdrop(animate: true);
         ctrlTimer.Tick += (_, _) => UpdateClickThrough();
         gameTimer.Tick += (_, _) => CheckGame();
-
-        var h = app.History;
-        bool F() => app.Settings.Fahrenheit;
-        cpuTip = new(h, h.CpuTemp, true, F, () => CpuHot); gCpuTip = new(h, h.CpuTemp, true, F, () => CpuHot);
-        gpuTip = new(h, h.GpuTemp, true, F, () => GpuHot); gGpuTip = new(h, h.GpuTemp, true, F, () => GpuHot);
-        ramTip = new(h, h.RamLoad, false, F, null); gRamTip = new(h, h.RamLoad, false, F, null);
-        diskTip = new(h, h.DiskTemp, true, F, () => DiskHot); gDiskTip = new(h, h.DiskTemp, true, F, () => DiskHot);
-        Tip(cpu.Root, cpuTip); Tip(gpu.Root, gpuTip); Tip(ram.Root, ramTip); Tip(disk.Root, diskTip);
-        Tip(gCpu.Root, gCpuTip); Tip(gGpu.Root, gGpuTip); Tip(gRam.Root, gRamTip); Tip(gDisk.Root, gDiskTip);
 
         var s = app.Settings;
         if (s.Left is double l && s.Top is double t) { Left = l; Top = t; }
@@ -102,6 +110,7 @@ public partial class MainWindow : Window
             if (!app.Snapshotting) gameTimer.Start();
         };
         Loaded += (_, _) => EnsureOnScreen();
+        Closed += (_, _) => fps.Dispose();
         SizeChanged += (_, e) =>
         {
             if (app.Settings.Left == null) { PlaceDefault(); return; }
@@ -117,9 +126,27 @@ public partial class MainWindow : Window
         Root.MouseLeftButtonDown += OnLeftDown;
         Root.MouseRightButtonUp += (_, e) => { app.ShowMenu(Root); e.Handled = true; };
         SystemEvents.DisplaySettingsChanged += (_, _) => Dispatcher.InvokeAsync(EnsureOnScreen);
+        SystemEvents.UserPreferenceChanged += (_, _) =>
+        {
+            if (app.Settings.Theme == AppSettings.FollowWindows) Dispatcher.InvokeAsync(() => { ApplySettings(); Apply(app.Last); });
+        };
     }
 
-    GaugeTile[] Tiles => new[] { gCpu, gGpu, gRam, gDisk, gFan, gNet, gBat, gPow };
+    static string Label(string key) => key switch
+    {
+        MetricKeys.Disk => L.T("DISQUE", "DISK"),
+        MetricKeys.Fan => L.T("VENTILO", "FAN"),
+        MetricKeys.Net => L.T("RÉSEAU", "NET"),
+        MetricKeys.Battery => L.T("BATTERIE", "BATTERY"),
+        MetricKeys.Power => L.T("CONSO", "POWER"),
+        _ => key.ToUpperInvariant(),
+    };
+
+    static void Tip(FrameworkElement element, HistoryTip tip)
+    {
+        element.ToolTip = tip;
+        ToolTipService.SetShowDuration(element, 60000);
+    }
 
     // ------------------------------------------------------------------ position
 
@@ -175,31 +202,44 @@ public partial class MainWindow : Window
         }
     }
 
-    // ------------------------------------------------------------------ mode jeu : un jeu ou une vidéo en plein écran sur le même écran
+    // ------------------------------------------------------------------ plein écran : profil « Jeu » et FPS
 
-    /// <summary>Plein écran en cours, en mode « compact » : CPU et GPU seulement, plus petit, fond léger.</summary>
-    bool Compact => gameActive && app.Settings.GameMode == "compact";
+    /// <summary>Un jeu ou une vidéo est en plein écran, et le profil « Jeu » s'applique.</summary>
+    bool Profile => gameActive && app.Settings.GameMode == AppSettings.GameProfile;
+
+    /// <summary>L'élément est-il affiché, compte tenu du profil en cours ?</summary>
+    bool Shows(string key) => Profile ? app.Settings.GameShow.Contains(key) : app.Settings.Shows(key);
+
+    string Layout => Profile ? app.Settings.GameLayout ?? app.Settings.Layout : app.Settings.Layout;
 
     void CheckGame()
     {
+        var s = app.Settings;
         var hwnd = new WindowInteropHelper(this).Handle;
-        bool full = app.Settings.GameMode != "off" && hwnd != IntPtr.Zero && Fullscreen.OnWidgetScreen(hwnd);
+        bool watch = s.GameMode != AppSettings.GameOff || s.ShowFps;
+        bool full = watch && hwnd != IntPtr.Zero && Fullscreen.OnWidgetScreen(hwnd, out gamePid);
         if (full == gameActive) return;
         gameActive = full;
-        if (app.Settings.GameMode == "hide")
+
+        if (s.GameMode == AppSettings.GameHide)
         {
             if (full && IsVisible) { hiddenByGame = true; Hide(); }
             else if (!full && hiddenByGame) { hiddenByGame = false; Show(); }
         }
         else if (!full && hiddenByGame) { hiddenByGame = false; Show(); }
+
+        // FPS : on n'écoute DirectX que pendant le plein écran, et seulement si on les affiche
+        if (full && Shows(MetricKeys.Fps) && !app.Snapshotting) { views.ResetFpsPeak(); fps.Start(); }
+        else fps.Stop();
+
         ApplySettings();
         Apply(app.Last);
     }
 
     // ------------------------------------------------------------------ apparence
 
-    /// <summary>Opacité réelle du fond : 0 en mode « aucun fond », sinon le réglage « Opacité du fond » (léger en jeu).</summary>
-    double BgOpacity => app.Settings.Transparent ? 0 : Compact ? Math.Min(app.Settings.BackgroundOpacity, 0.35) : app.Settings.BackgroundOpacity;
+    /// <summary>Opacité réelle du fond : 0 sans fond, sinon le réglage (celui du profil « Jeu » en plein écran).</summary>
+    double BgOpacity => app.Settings.Transparent ? 0 : Profile ? app.Settings.GameBackgroundOpacity : app.Settings.BackgroundOpacity;
 
     /// <summary>
     /// Les couleurs suivent le fond de l'écran : en translucide, sans fond, ou dès que le fond devient assez
@@ -207,28 +247,47 @@ public partial class MainWindow : Window
     /// </summary>
     bool Adaptive => app.Settings.Translucent || BgOpacity < 0.6;
 
+    /// <summary>Thème clair du fond opaque (choisi, ou celui de Windows).</summary>
+    bool LightTheme => app.Settings.Theme == AppSettings.Light || app.Settings.Theme == AppSettings.FollowWindows && WindowsUsesLightTheme();
+
+    static bool WindowsUsesLightTheme()
+    {
+        try
+        {
+            using var k = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            return k?.GetValue("AppsUseLightTheme") is int v && v == 1;
+        }
+        catch { return false; }
+    }
+
     public void ApplySettings()
     {
         var s = app.Settings;
-        Topmost = s.Topmost || Compact;
-        guard.Enable((s.Topmost && s.TopmostForce || Compact) && !app.Snapshotting);
+        bool profile = Profile;
+        string layout = Layout;
+        Topmost = s.Topmost || profile;
+        guard.Enable((s.Topmost && s.TopmostForce || profile) && !app.Snapshotting);
         Root.BeginAnimation(OpacityProperty, null);
         Root.Opacity = s.Opacity;
-        Zoom.ScaleX = Zoom.ScaleY = s.Scale * (Compact ? 0.85 : 1);
-        Header.Visibility = Compact ? Visibility.Collapsed : Visibility.Visible;
+        Zoom.ScaleX = Zoom.ScaleY = profile ? s.GameScale : s.Scale;
         palette.SetAccent(Palette.Parse(s.Accent));
+        ApplyOrder();
 
-        // affichage : lignes et barres, ou jauges rondes
-        Rows.Visibility = s.Gauges ? Visibility.Collapsed : Visibility.Visible;
-        Gauges.Visibility = s.Gauges ? Visibility.Visible : Visibility.Collapsed;
-        Body.Width = s.Gauges ? double.NaN : 218;
-        Body.MinWidth = s.Gauges ? (Compact ? 0 : 150) : 0;
+        // disposition : jauges rondes, lignes et barres, ou barre fine
+        Rows.Visibility = layout == AppSettings.Rows ? Visibility.Visible : Visibility.Collapsed;
+        Gauges.Visibility = layout == AppSettings.Gauges ? Visibility.Visible : Visibility.Collapsed;
+        BarPanel.Visibility = layout == AppSettings.Bar ? Visibility.Visible : Visibility.Collapsed;
+        Header.Visibility = profile || layout == AppSettings.Bar ? Visibility.Collapsed : Visibility.Visible;
+        Body.Width = layout == AppSettings.Rows ? 218 : double.NaN;
+        Body.MinWidth = layout == AppSettings.Gauges && !profile ? 150 : 0;
+        Card.Padding = layout == AppSettings.Bar ? new Thickness(12, 5, 12, 6) : new Thickness(14, 10, 14, 10);
 
-        // fond : verre teinté ou dégradé sombre, avec sa propre opacité (l'ombre suit)
+        // fond : verre teinté, dégradé sombre ou clair, avec sa propre opacité (l'ombre suit)
         double bg = BgOpacity;
-        Bg.Background = s.Translucent ? palette.Tint : (Brush)FindResource("CardBg");
+        bool light = LightTheme;
+        Bg.Background = s.Translucent ? palette.Tint : (Brush)FindResource(light ? "CardBgLight" : "CardBg");
         Bg.Opacity = bg;
-        Shadow.Opacity = s.Translucent ? 0.16 : 0.5;
+        Shadow.Opacity = s.Translucent ? 0.16 : light ? 0.3 : 0.5;
         Card.BorderBrush = bg >= 0.15 ? palette.Line : Brushes.Transparent;
 
         if (Adaptive)
@@ -240,7 +299,7 @@ public partial class MainWindow : Window
         else
         {
             Body.Effect = null;
-            palette.Use(light: false, animate: false);
+            palette.Use(light, animate: false);
         }
         halo.Opacity = HaloOpacity;
         UpdateBackdropTimer();
@@ -248,8 +307,27 @@ public partial class MainWindow : Window
         if (s.ClickThrough && !app.Snapshotting) ctrlTimer.Start();
         else ctrlTimer.Stop();
         UpdateClickThrough();
-        if (!s.FireAnimation || s.Gauges) fire.Set(0);
-        if (!s.FireAnimation || !s.Gauges) foreach (var t in Tiles) t.SetFire(0);
+        if (!s.FireAnimation || layout != AppSettings.Rows) fire.Set(0);
+        if (!s.FireAnimation || layout != AppSettings.Gauges) foreach (var it in items.Values) it.Tile.SetFire(0);
+    }
+
+    /// <summary>Range les éléments dans l'ordre choisi (lignes, jauges et barre).</summary>
+    void ApplyOrder()
+    {
+        var order = app.Settings.Order;
+        string signature = string.Join(",", order);
+        if (signature == orderApplied) return;
+        orderApplied = signature;
+        Rows.Children.Clear();
+        Gauges.Children.Clear();
+        BarPanel.Children.Clear();
+        foreach (var key in order)
+        {
+            if (!items.TryGetValue(key, out var it)) continue;
+            Rows.Children.Add(it.Row.Root);
+            Gauges.Children.Add(it.Tile.Root);
+            BarPanel.Children.Add(it.Bar.Root);
+        }
     }
 
     double HaloOpacity => BgOpacity < 0.3 ? 0.95 : palette.IsLight ? 0.75 : 0.6;
@@ -304,11 +382,7 @@ public partial class MainWindow : Window
         return IntPtr.Zero;
     }
 
-    static void Tip(FrameworkElement element, HistoryTip tip)
-    {
-        element.ToolTip = tip;
-        ToolTipService.SetShowDuration(element, 60000);
-    }
+    // ------------------------------------------------------------------ couleurs adaptées au fond de l'écran
 
     void UpdateBackdropTimer()
     {
@@ -359,175 +433,66 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ valeurs
 
+    /// <summary>Valeur FPS imposée (captures d'écran) ; null : mesure réelle.</summary>
+    internal float? DemoFps;
+
     public void Apply(Readings r)
     {
         if (!r.Ready) return;
         var s = app.Settings;
-        bool f = s.Fahrenheit;
-        bool compact = Compact;
-        bool showCpu = s.ShowCpu, showGpu = s.ShowGpu, showRam = s.ShowRam && !compact, showDisk = s.ShowDisk && !compact,
-             showFan = s.ShowFan && !compact, showNet = s.ShowNet && !compact, showBat = s.ShowBattery && !compact, showPow = s.ShowPower && !compact;
-
-        cpu.Visible = showCpu;
-        SetTemp(cpu, r.CpuTemp, f, CpuWarn, CpuHot);
-        cpu.SetLoad(r.CpuLoad);
-        cpuTip.Text = gCpuTip.Text = Lines(r.CpuName, r.CpuPower is float p ? L.T("Consommation", "Power") + $" : {p.ToString("0.#", Fmt.Fr)} W" : null);
-
-        gpu.Visible = showGpu && r.GpuName != null;
-        SetTemp(gpu, r.GpuTemp, f, GpuWarn, GpuHot);
-        gpu.SetLoad(r.GpuLoad);
-        gpuTip.Text = gGpuTip.Text = Lines(r.GpuName, r.GpuPower is float gp ? L.T("Consommation", "Power") + $" : {gp.ToString("0.#", Fmt.Fr)} W" : null);
-
-        ram.Visible = showRam && r.RamLoad.HasValue;
-        ram.SetValue(r.RamUsed is float u ? u.ToString(u >= 100 ? "0" : "0.0", Fmt.Fr) : "—", " " + Fmt.GB, palette.Text);
-        ram.SetLoad(r.RamLoad);
-        ramTip.Text = gRamTip.Text = r.RamUsed is float used && r.RamTotal is float total
-            ? L.T($"Mémoire : {used.ToString("0.0", Fmt.Fr)} Go utilisés sur {total.ToString("0.0", Fmt.Fr)} Go",
-                  $"Memory: {used.ToString("0.0", Fmt.Fr)} GB used of {total.ToString("0.0", Fmt.Fr)} GB")
-            : L.T("Mémoire", "Memory");
-
-        disk.Visible = showDisk && (r.DiskTemp.HasValue || r.DiskLoad.HasValue);
-        SetTemp(disk, r.DiskTemp, f, DiskWarn, DiskHot);
-        disk.SetLoad(r.DiskLoad);
-        diskTip.Text = gDiskTip.Text = r.DiskName is null
-            ? L.T("Activité du disque le plus sollicité", "Activity of the busiest drive")
-            : (s.DiskId != null ? r.DiskName : L.T($"Le plus chaud : {r.DiskName}", $"Hottest: {r.DiskName}")) + L.T("\nUtilisation : activité du disque", "\nLoad: drive activity");
-
-        fan.Visible = showFan && r.FanRpm.HasValue;
-        fan.SetValue(r.FanRpm is float rpm ? rpm.ToString("N0", Fmt.Fr) : "—", " " + Fmt.Rpm, palette.Text);
-
-        // réseau : ↓ réception, ↑ envoi (même unité pour les deux)
-        net.Visible = showNet && (r.NetDown.HasValue || r.NetUp.HasValue);
-        var (down, unit) = Fmt.RateParts(r.NetDown ?? 0);
-        var (up, upUnit) = Fmt.RateParts(r.NetUp ?? 0);
-        net.SetValue($"↓ {down}  ↑ {up}", upUnit == unit ? " " + unit : $" {unit} / {upUnit}", palette.Text);
-        net.Root.ToolTip = r.NetName;
-
-        // batterie : barre = niveau (rouge sous 20 %), à droite « ⚡ » en charge ou les watts consommés
-        bat.Visible = showBat && r.BatteryLevel.HasValue;
-        var batBrush = r.BatteryLevel < 20 ? palette.Hot : r.BatteryLevel < 35 ? palette.Warn : palette.Accent;
-        bat.SetValue(r.BatteryLevel is float lvl ? lvl.ToString("0", Fmt.Fr) : "—", " %", r.BatteryLevel < 20 ? palette.Hot : palette.Text);
-        bat.SetBar(r.BatteryLevel, batBrush, BatterySide(r));
-        bat.Root.ToolTip = BatteryTip(r);
-
-        pow.Visible = showPow && r.TotalPower.HasValue;
-        pow.SetValue(r.TotalPower is float w ? w.ToString("0", Fmt.Fr) : "—", " W", palette.Text);
-        pow.Root.ToolTip = PowerTip(r);
-
-        // trop chaud : la valeur rougeoie et le widget prend feu (avec 3 °C de marge pour s'éteindre)
-        bool c = Hot(ref hotCpu, r.CpuTemp, CpuHot) && showCpu;
-        bool g = Hot(ref hotGpu, r.GpuTemp, GpuHot) && showGpu;
-        bool d = Hot(ref hotDisk, r.DiskTemp, DiskHot) && showDisk;
-        cpu.SetHot(c); gpu.SetHot(g); disk.SetHot(d);
-        gCpu.SetHot(c); gGpu.SetHot(g); gDisk.SetHot(d);
-        ApplyGauges(r, showCpu, showGpu, showRam, showDisk, showFan, showNet, showBat, showPow);
-        // le feu : sur la jauge concernée en jauges rondes, sur tout le bas du widget en lignes
+        string layout = Layout;
+        float? framesPerSecond = DemoFps ?? (gameActive && fps.Running ? fps.Sample(gamePid) : null);
         double Flame(double over) => s.FireAnimation ? 1 + Math.Clamp(over / 10, 0, 1) : 0;
-        if (s.Gauges)
+        double hottest = -1;
+
+        foreach (var it in items.Values)
         {
-            fire.Set(0);
-            gCpu.SetFire(c ? Flame(Over(c, r.CpuTemp, CpuHot)) : 0);
-            gGpu.SetFire(g ? Flame(Over(g, r.GpuTemp, GpuHot)) : 0);
-            gDisk.SetFire(d ? Flame(Over(d, r.DiskTemp, DiskHot)) : 0);
+            var v = views.Build(it.Key, r, framesPerSecond);
+            bool show = Shows(it.Key) && v.Available;
+            it.Row.Visible = it.Tile.Visible = it.Bar.Visible = show;
+
+            // trop chaud : la valeur rougeoie (avec 3 °C de marge pour s'éteindre)
+            it.Hot = show && Hot(it.Hot, v.Celsius, v.HotLimit);
+            it.Row.SetHot(it.Hot);
+            it.Tile.SetHot(it.Hot);
+            it.Bar.SetHot(it.Hot);
+            double over = it.Hot && v.Celsius is float c ? c - v.HotLimit : -1;
+            if (it.Hot) hottest = Math.Max(hottest, over);
+            it.Tile.SetFire(layout == AppSettings.Gauges && it.Hot ? Flame(over) : 0);   // jauges : le feu sur la jauge concernée
+            if (!show) continue;
+
+            it.Row.SetValue(v.Value, v.Unit, v.ValueBrush);
+            if (v.BarPercent.HasValue || v.BarBrush != null) it.Row.SetBar(v.BarPercent, v.BarBrush ?? palette.Accent, v.Side ?? "");
+            it.Tile.Set(v.TileValue ?? v.Value, v.TileUnit ?? v.Unit, v.ValueBrush, v.Ring, v.RingBrush ?? palette.Accent, v.Sub);
+            it.Bar.Set(v);
+            it.Bar.Root.ToolTip = v.Tip;
+            if (it.RowTip != null) it.RowTip.Text = it.TileTip!.Text = v.Tip;
+            else it.Row.Root.ToolTip = it.Tile.Root.ToolTip = v.Tip;
         }
-        else
-        {
-            double over = Math.Max(Over(c, r.CpuTemp, CpuHot), Math.Max(Over(g, r.GpuTemp, GpuHot), Over(d, r.DiskTemp, DiskHot)));
-            fire.Set(c || g || d ? Flame(over) : 0);
-        }
+        // lignes : tout le bas du widget prend feu
+        fire.Set(layout == AppSettings.Rows && hottest >= 0 ? Flame(hottest) : 0);
 
         string? notice = null;
         if (!app.IsAdmin && !app.Demo) notice = L.T("Lance Temperator en administrateur pour lire les températures.", "Run Temperator as administrator to read temperatures.");
         else if (s.ShowCpu && r.CpuTemp == null && ++updates > 3 && !Native.PawnIOInstalled.Value)
             notice = L.T("Pilote PawnIO absent : température du CPU indisponible. Relance l'installeur de Temperator.",
                          "PawnIO driver missing: CPU temperature unavailable. Run the Temperator installer again.");
-        if (compact) notice = null;
+        if (Profile || layout == AppSettings.Bar) notice = null;
         Notice.Text = notice ?? "";
         Notice.Visibility = notice == null ? Visibility.Collapsed : Visibility.Visible;
 
         Pulse.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.25, TimeSpan.FromMilliseconds(700)));
     }
 
-    static string BatterySide(Readings r) =>
-        r.BatteryCharging ? "⚡" : r.BatteryRate is float rate && rate < 0 ? $"{rate.ToString("0", Fmt.Fr)} W" : "";
+    /// <summary>Trop chaud au-delà du seuil, et le reste jusqu'à 3 °C en dessous (pas de clignotement).</summary>
+    internal static bool Hot(bool wasHot, float? celsius, float limit) =>
+        limit > 0 && celsius is float v && (v >= limit || (wasHot && v >= limit - 3));
 
-    static string BatteryTip(Readings r)
+    /// <summary>Captures : force le profil « Jeu » (plein écran simulé).</summary>
+    internal void SimulateGame(bool on)
     {
-        string state = r.BatteryCharging ? L.T("En charge", "Charging") : L.T("Sur batterie", "On battery");
-        return r.BatteryRate is float rate ? $"{state} · {Math.Abs(rate).ToString("0.#", Fmt.Fr)} W" : state;
-    }
-
-    static string PowerTip(Readings r) =>
-        L.T("Consommation estimée du processeur et de la carte graphique", "Estimated power of the processor and graphics card") +
-        $"\nCPU {(r.CpuPower is float c ? c.ToString("0", Fmt.Fr) + " W" : "—")} · GPU {(r.GpuPower is float g ? g.ToString("0", Fmt.Fr) + " W" : "—")}";
-
-    /// <summary>Jauges rondes : l'anneau suit la température (20 °C → maximum du composant), la charge est écrite dessous.</summary>
-    void ApplyGauges(Readings r, bool showCpu, bool showGpu, bool showRam, bool showDisk, bool showFan, bool showNet, bool showBat, bool showPow)
-    {
-        var s = app.Settings;
-        bool f = s.Fahrenheit;
-        string deg = f ? "°F" : "°";
-        string T(float? c) => c is float v ? Fmt.Temp(v, f).ToString("0", Fmt.Fr) : "—";
-        string? P(float? l) => l is float v ? $"{Math.Clamp(v, 0, 100):0} %" : null;
-        static double Scale(float? c, float max) => c is float v ? (v - 20) / (max - 20) : 0;
-
-        gCpu.Visible = showCpu;
-        var cb = palette.ForTemp(r.CpuTemp, CpuWarn, CpuHot);
-        gCpu.Set(T(r.CpuTemp), deg, cb, Scale(r.CpuTemp, Math.Max(100, CpuHot + 10)), cb, P(r.CpuLoad));
-
-        gGpu.Visible = showGpu && r.GpuName != null;
-        var gb = palette.ForTemp(r.GpuTemp, GpuWarn, GpuHot);
-        gGpu.Set(T(r.GpuTemp), deg, gb, Scale(r.GpuTemp, Math.Max(95, GpuHot + 8)), gb, P(r.GpuLoad));
-
-        gRam.Visible = showRam && r.RamLoad.HasValue;
-        gRam.Set(r.RamUsed is float u ? u.ToString(u >= 100 ? "0" : "0.0", Fmt.Fr) : "—", " " + Fmt.GB, palette.Text,
-                 (r.RamLoad ?? 0) / 100.0, r.RamLoad >= 90 ? palette.Warn : palette.Accent, P(r.RamLoad));
-
-        gDisk.Visible = showDisk && (r.DiskTemp.HasValue || r.DiskLoad.HasValue);
-        var db = palette.ForTemp(r.DiskTemp, DiskWarn, DiskHot);
-        gDisk.Set(T(r.DiskTemp), deg, db, Scale(r.DiskTemp, Math.Max(70, DiskHot + 10)), db, P(r.DiskLoad));
-
-        gFan.Visible = showFan && r.FanRpm.HasValue;
-        gFan.Set(r.FanRpm is float rpm ? rpm.ToString("N0", Fmt.Fr) : "—", "", palette.Text, (r.FanRpm ?? 0) / 4000.0, palette.Accent, Fmt.Rpm);
-        gFan.ToolTip = L.T("Le ventilateur le plus rapide", "The fastest fan");
-
-        // réseau : l'anneau suit la réception, par rapport au pic récent
-        gNet.Visible = showNet && (r.NetDown.HasValue || r.NetUp.HasValue);
-        float downB = r.NetDown ?? 0;
-        netPeak = Math.Max(netPeak * 0.995f, Math.Max(downB, 1e6f));
-        var (down, unit) = Fmt.RateParts(downB);
-        var (up, upUnit) = Fmt.RateParts(r.NetUp ?? 0);
-        gNet.Set(down, "", palette.Text, downB / netPeak, palette.Accent, $"{unit} ↓");
-        gNet.ToolTip = Lines(r.NetName, L.T($"Réception : {down} {unit}\nEnvoi : {up} {upUnit}", $"Download: {down} {unit}\nUpload: {up} {upUnit}"));
-
-        gBat.Visible = showBat && r.BatteryLevel.HasValue;
-        var batBrush = r.BatteryLevel < 20 ? palette.Hot : r.BatteryLevel < 35 ? palette.Warn : palette.Accent;
-        string side = BatterySide(r);
-        gBat.Set(r.BatteryLevel is float lvl ? lvl.ToString("0", Fmt.Fr) : "—", " %", r.BatteryLevel < 20 ? palette.Hot : palette.Text,
-                 (r.BatteryLevel ?? 0) / 100.0, batBrush, side.Length > 0 ? side : null);
-        gBat.ToolTip = BatteryTip(r);
-
-        gPow.Visible = showPow && r.TotalPower.HasValue;
-        float watts = r.TotalPower ?? 0;
-        powerPeak = Math.Max(powerPeak, watts);
-        gPow.Set(watts.ToString("0", Fmt.Fr), " W", palette.Text, watts / powerPeak, watts > 0.85 * powerPeak ? palette.Warn : palette.Accent, "CPU+GPU");
-        gPow.ToolTip = PowerTip(r);
-    }
-
-    static bool Hot(ref bool state, float? celsius, float limit)
-    {
-        state = celsius is float v && (v >= limit || (state && v >= limit - 3));
-        return state;
-    }
-
-    static double Over(bool hot, float? celsius, float limit) => hot && celsius is float v ? v - limit : 0;
-
-    void SetTemp(MetricRow row, float? celsius, bool fahrenheit, float warn, float hot) =>
-        row.SetValue(celsius is float c ? Fmt.Temp(c, fahrenheit).ToString("0", Fmt.Fr) : "—", fahrenheit ? "°F" : "°", palette.ForTemp(celsius, warn, hot));
-
-    static string? Lines(params string?[] lines)
-    {
-        var text = string.Join("\n", Array.FindAll(lines, l => !string.IsNullOrEmpty(l)));
-        return text.Length > 0 ? text : null;
+        gameActive = on;
+        ApplySettings();
+        Apply(app.Last);
     }
 }

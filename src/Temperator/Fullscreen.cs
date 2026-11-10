@@ -7,12 +7,15 @@ namespace Temperator;
 /// <summary>Un jeu ou une vidéo occupe-t-il tout l'écran où se trouve le widget ?</summary>
 static class Fullscreen
 {
-    public static bool OnWidgetScreen(IntPtr widget)
+    /// <param name="processId">le processus en plein écran (pour compter ses images par seconde)</param>
+    public static bool OnWidgetScreen(IntPtr widget, out int processId)
     {
+        processId = 0;
         var fg = GetForegroundWindow();
         if (fg == IntPtr.Zero || fg == widget) return false;
         GetWindowThreadProcessId(fg, out uint pid);
         if (pid == (uint)Environment.ProcessId) return false;   // le plan du PC, les réglages…
+        processId = (int)pid;
 
         var cls = new StringBuilder(128);
         GetClassName(fg, cls, cls.Capacity);

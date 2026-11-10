@@ -22,10 +22,18 @@ Your PC's temperatures and usage, always on screen: a small, discreet widget at 
   and **power draw** of the processor and graphics card in watts.
 - **Colors**: teal when all is well, orange when it's warming up, red when it's too hot.
   The accent color can be changed (blue, purple, pink, green, orange, white).
-- **Round gauges** (default) or **rows and bars**.
-- You pick which **graphics card**, **drive** and **network adapter** are shown, if there are several.
+- **FPS** (frames per second) of the fullscreen game: DirectX 9 to 12 games.
+- **Round gauges** (default), **rows and bars**, or a **thin bar** on a single line.
+- You pick the **order** of the items, and which **graphics card**, **drive** and **network adapter** are shown.
+- **Dark, light, or Windows-matching theme** for the opaque background.
 
 <p align="center"><img src="docs/en/widget-jauges-tout.png" width="620" alt="All the information, purple accent color"></p>
+<p align="center"><img src="docs/en/widget-barre.png" width="720" alt="The thin bar"></p>
+<p align="center">
+  <img src="docs/en/widget-clair.png" width="420" alt="Light theme">
+  <img src="docs/en/widget-jeu.png" width="250" alt="Game profile with FPS">
+</p>
+<p align="center"><sub>Thin bar · light theme · "Game" profile with FPS</sub></p>
 
 ## What it can do
 
@@ -34,8 +42,9 @@ Your PC's temperatures and usage, always on screen: a small, discreet widget at 
 - **Windows alert** when a component stays too hot for more than 30 seconds, even with the widget hidden.
 - **History**: hover a gauge for its last 5 minutes, and in the *PC map* the last 10 minutes, last hour or last 24 hours
   (kept across restarts), with **CSV export** for Excel.
-- **Game mode**: when a game or video goes fullscreen, the widget turns compact (CPU and GPU only, light background),
-  or hides, as you prefer.
+- **"Game" profile**: when a game or video goes fullscreen, the widget switches its settings by itself
+  (by default CPU, GPU and FPS, smaller, light background, always on top), then goes back to its "Desktop" profile.
+  You choose what it shows, its layout, size and background. It can also hide, or change nothing.
 - **Opaque, translucent or no background**: when translucent or with no background, the widget looks at the screen around it
   and switches to light or dark colors to stay readable. The **background opacity** is adjustable on its own.
 - **Above everything, whatever happens**: it comes back over any window covering it.
@@ -125,10 +134,15 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 |---|---|
 | `src/Temperator` | the widget (WPF, .NET 10, [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)) |
 | `src/Setup` | `Temperator-Setup.exe`: the installer (C#, WPF, .NET Framework 4.8), which contains the app |
+| `tests/Temperator.Tests` | the tests (xUnit) |
 | `tools/make-icon.ps1` | generates the icon |
+
+Tests: `dotnet test tests/Temperator.Tests` (updates, formatting, settings, history, thresholds…).
 
 Screenshots: `Temperator.exe --snapshot <folder> --demo` (add `--en` for English),
 and `Temperator-Setup.exe /preview <folder> /lang fr|en` (Debug build) for the installer.
+
+Check the FPS counter (as administrator): `Temperator.exe --fps-test <file>`.
 
 Settings are in `%ProgramData%\Temperator\settings.json`, the history in `historique.csv` and errors in `erreurs.log`,
 in the same folder.

@@ -23,6 +23,7 @@ dotnet publish $proj -c Release -o $app -p:Version=$Version --nologo -v quiet
 if ($LASTEXITCODE) { throw 'Échec de la compilation de Temperator.' }
 Copy-Item LICENSE, LICENCES-TIERS.txt $app
 Get-ChildItem $app -Filter *.pdb | Remove-Item
+Remove-Item (Join-Path $app 'amd64\msdia140.dll') -ErrorAction SilentlyContinue   # lecteur de symboles de TraceEvent : inutile pour les FPS
 Compress-Archive -Path "$app\*" -DestinationPath (Join-Path $payload 'Temperator.zip') -CompressionLevel Optimal
 
 Write-Host '2/2  Temperator-Setup.exe (installeur en C#, contient l''application)'

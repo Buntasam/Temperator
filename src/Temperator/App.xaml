@@ -15,6 +15,11 @@
       <GradientStop Color="#171A21" Offset="0"/>
       <GradientStop Color="#0C0E12" Offset="1"/>
     </LinearGradientBrush>
+    <!-- thème clair du fond opaque -->
+    <LinearGradientBrush x:Key="CardBgLight" StartPoint="0,0" EndPoint="0,1">
+      <GradientStop Color="#FBFCFE" Offset="0"/>
+      <GradientStop Color="#E9EEF5" Offset="1"/>
+    </LinearGradientBrush>
     <FontFamily x:Key="TitleFont">Bahnschrift, Segoe UI</FontFamily>
 
     <!-- menu clic droit : sombre et arrondi, comme le reste -->
@@ -187,6 +192,31 @@
                 <Setter Property="Foreground" Value="#F1F3F6"/>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- pastille à cocher (plusieurs choix possibles) -->
+    <Style x:Key="PillToggle" TargetType="CheckBox">
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Foreground" Value="#C9CFD8"/>
+      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="Margin" Value="0,0,6,6"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="CheckBox">
+            <Border x:Name="B" CornerRadius="9" Padding="12,5,12,6" Background="#12F1F3F6" BorderBrush="#22F1F3F6" BorderThickness="1">
+              <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#22F1F3F6"/></Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="B" Property="Background" Value="#264ED8C0"/>
+                <Setter TargetName="B" Property="BorderBrush" Value="#4ED8C0"/>
+                <Setter Property="Foreground" Value="#F1F3F6"/>
+              </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>

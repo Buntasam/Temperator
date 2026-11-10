@@ -87,8 +87,8 @@ public partial class SettingsWindow : Window
     void LookPage()
     {
         Section(L.T("AFFICHAGE", "LAYOUT"));
-        Row(L.T("Disposition", "Layout"), null, Pills(S.Gauges, v => S.Gauges = v,
-            (L.T("Jauges rondes", "Round gauges"), true), (L.T("Lignes et barres", "Rows and bars"), false)));
+        Row(L.T("Disposition", "Layout"), L.T("La barre fine tient sur une seule ligne, très discrète.", "The thin bar fits on a single line, very discreet."),
+            Pills(S.Layout, v => S.Layout = v, (L.T("Jauges rondes", "Round gauges"), AppSettings.Gauges), (L.T("Lignes et barres", "Rows and bars"), AppSettings.Rows), (L.T("Barre fine", "Thin bar"), AppSettings.Bar)));
         Row(L.T("Taille", "Size"), null, Pills(S.Scale, v => S.Scale = v,
             (L.T("Petite", "Small"), 0.85), (L.T("Normale", "Normal"), 1.0), (L.T("Grande", "Large"), 1.2), (L.T("Très grande", "Extra large"), 1.45)));
 
@@ -96,6 +96,10 @@ public partial class SettingsWindow : Window
         Row(L.T("Fond", "Background"), L.T("Translucide et sans fond adaptent les couleurs à ce qu'il y a derrière.", "Translucent and none adapt colors to what's behind."),
             Pills(S.Transparent ? 2 : S.Translucent ? 1 : 0, v => { S.Translucent = v == 1; S.Transparent = v == 2; },
                 (L.T("Opaque", "Opaque"), 0), (L.T("Translucide", "Translucent"), 1), (L.T("Aucun fond", "None"), 2)), redraw: true);
+        var theme = Pills(S.Theme, v => S.Theme = v,
+            (L.T("Sombre", "Dark"), AppSettings.Dark), (L.T("Clair", "Light"), AppSettings.Light), (L.T("Comme Windows", "Like Windows"), AppSettings.FollowWindows));
+        theme.IsEnabled = !S.Translucent && !S.Transparent;
+        Row(L.T("Thème du fond opaque", "Opaque background theme"), L.T("« Comme Windows » suit le mode clair ou sombre de Windows.", "\"Like Windows\" follows the Windows light or dark mode."), theme);
         var bg = Slider(S.BackgroundOpacity, 0, 1, v => $"{v * 100:0} %", v => S.BackgroundOpacity = v);
         bg.IsEnabled = !S.Transparent;
         Row(L.T("Opacité du fond", "Background opacity"), L.T("Le fond seul : le texte reste net.", "The background only: text stays sharp."), bg);
@@ -111,15 +115,21 @@ public partial class SettingsWindow : Window
 
     void InfoPage()
     {
-        Section(L.T("À AFFICHER", "SHOW"));
-        Row(L.T("Processeur (CPU)", "Processor (CPU)"), null, Switch(S.ShowCpu, v => S.ShowCpu = v));
-        Row(L.T("Carte graphique (GPU)", "Graphics card (GPU)"), null, Switch(S.ShowGpu, v => S.ShowGpu = v));
-        Row(L.T("Mémoire (RAM)", "Memory (RAM)"), null, Switch(S.ShowRam, v => S.ShowRam = v));
-        Row(L.T("Disque", "Drive"), L.T("Température et activité.", "Temperature and activity."), Switch(S.ShowDisk, v => S.ShowDisk = v));
-        Row(L.T("Ventilateur", "Fan"), L.T("Le plus rapide.", "The fastest one."), Switch(S.ShowFan, v => S.ShowFan = v));
-        Row(L.T("Réseau", "Network"), L.T("Réception ↓ et envoi ↑.", "Download ↓ and upload ↑."), Switch(S.ShowNet, v => S.ShowNet = v));
-        Row(L.T("Batterie", "Battery"), L.T("Portables : niveau, en charge ou watts consommés.", "Laptops: level, charging or watts drawn."), Switch(S.ShowBattery, v => S.ShowBattery = v));
-        Row(L.T("Consommation", "Power draw"), L.T("CPU + GPU, en watts (estimation).", "CPU + GPU, in watts (estimate)."), Switch(S.ShowPower, v => S.ShowPower = v));
+        Section(L.T("À AFFICHER, ET DANS QUEL ORDRE", "SHOWN, AND IN WHICH ORDER"));
+        Note(L.T("Les flèches déplacent un élément dans le widget.", "The arrows move an item in the widget."));
+        var order = S.Order;
+        for (int i = 0; i < order.Count; i++)
+        {
+            string key = order[i];
+            int index = i;
+            var controls = new StackPanel { Orientation = Orientation.Horizontal };
+            controls.Children.Add(Arrow("\uE70E", L.T("Monter", "Move up"), index > 0, () => Move(index, -1)));
+            controls.Children.Add(Arrow("\uE70D", L.T("Descendre", "Move down"), index < order.Count - 1, () => Move(index, +1)));
+            var sw = Switch(S.Shows(key), v => S.SetShows(key, v));
+            sw.Margin = new Thickness(10, 0, 0, 0);
+            controls.Children.Add(sw);
+            Row(MetricKeys.Name(key), Description(key), controls);
+        }
 
         Section(L.T("MATÉRIEL", "HARDWARE"));
         var r = app.Last;
@@ -134,6 +144,42 @@ public partial class SettingsWindow : Window
         Row(L.T("Actualisation", "Refresh"), null, Pills(S.IntervalMs, v => S.IntervalMs = v,
             ("0,5 s", 500), ("1 s", 1000), ("2 s", 2000), ("5 s", 5000)));
         Row(L.T("Unité de température", "Temperature unit"), null, Pills(S.Fahrenheit, v => S.Fahrenheit = v, ("°C", false), ("°F", true)), redraw: true);
+    }
+
+    static string? Description(string key) => key switch
+    {
+        MetricKeys.Disk => L.T("Température et activité.", "Temperature and activity."),
+        MetricKeys.Fan => L.T("Le plus rapide.", "The fastest one."),
+        MetricKeys.Net => L.T("Réception ↓ et envoi ↑.", "Download ↓ and upload ↑."),
+        MetricKeys.Battery => L.T("Portables : niveau, en charge ou watts consommés.", "Laptops: level, charging or watts drawn."),
+        MetricKeys.Power => L.T("CPU + GPU, en watts (estimation).", "CPU + GPU, in watts (estimate)."),
+        MetricKeys.Fps => L.T("Pendant un jeu en plein écran (DirectX).", "During a fullscreen game (DirectX)."),
+        _ => null,
+    };
+
+    /// <summary>Déplace un élément d'un cran dans l'ordre du widget.</summary>
+    void Move(int index, int delta)
+    {
+        var order = S.Order;
+        int target = index + delta;
+        if (target < 0 || target >= order.Count) return;
+        (order[index], order[target]) = (order[target], order[index]);
+        Changed();
+        double offset = Scroller.VerticalOffset;
+        ShowPage(current);
+        Scroller.ScrollToVerticalOffset(offset);
+    }
+
+    static Button Arrow(string glyph, string tip, bool enabled, Action action)
+    {
+        var b = new Button
+        {
+            Style = (Style)Application.Current.FindResource("ActionButton"), ToolTip = tip, IsEnabled = enabled, Margin = new Thickness(4, 0, 0, 0),
+            Content = new TextBlock { Text = glyph, FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 11 },
+            Opacity = enabled ? 1 : 0.3,
+        };
+        b.Click += (_, _) => action();
+        return b;
     }
 
     void AlertsPage()
@@ -183,9 +229,32 @@ public partial class SettingsWindow : Window
                  "Detected automatically on the widget's screen. Games in \"exclusive\" fullscreen can't be overlaid by any app: " +
                  "choose \"borderless windowed\" in the game."));
         Row(L.T("Pendant le plein écran", "During fullscreen"), null, Pills(S.GameMode, v => S.GameMode = v,
-            (L.T("Compact : CPU et GPU seulement, plus petit, fond léger", "Compact: CPU and GPU only, smaller, light background"), "compact"),
-            (L.T("Masquer le widget", "Hide the widget"), "hide"),
-            (L.T("Ne rien changer", "Change nothing"), "off")), stacked: true);
+            (L.T("Profil « Jeu » (réglé ci-dessous)", "\"Game\" profile (set below)"), AppSettings.GameProfile),
+            (L.T("Masquer le widget", "Hide the widget"), AppSettings.GameHide),
+            (L.T("Ne rien changer", "Change nothing"), AppSettings.GameOff)), stacked: true, redraw: true);
+        if (S.GameMode != AppSettings.GameProfile) return;
+
+        Section(L.T("PROFIL « JEU »", "\"GAME\" PROFILE"));
+        Note(L.T("S'applique tout seul pendant le plein écran, puis le widget revient à son profil « Bureau » (les autres onglets).",
+                 "Applies by itself during fullscreen, then the widget goes back to its \"Desktop\" profile (the other tabs)."));
+        var chips = new WrapPanel { MaxWidth = 470 };
+        foreach (var key in MetricKeys.All)
+        {
+            var chip = new CheckBox { Style = (Style)FindResource("PillToggle"), Content = MetricKeys.Name(key), IsChecked = S.GameShow.Contains(key) };
+            chip.Click += (_, _) =>
+            {
+                S.GameShow.Remove(key);
+                if (chip.IsChecked == true) S.GameShow.Add(key);
+                Changed();
+            };
+            chips.Children.Add(chip);
+        }
+        Row(L.T("À afficher pendant un jeu", "Shown during a game"), L.T("Les FPS : jeux DirectX 9 à 12 (pas les jeux Vulkan ou OpenGL purs).", "FPS: DirectX 9 to 12 games (not pure Vulkan or OpenGL games)."), chips, stacked: true);
+        Row(L.T("Disposition", "Layout"), null, Pills(S.GameLayout, v => S.GameLayout = v,
+            (L.T("Comme au bureau", "Same as desktop"), (string?)null), (L.T("Jauges rondes", "Round gauges"), AppSettings.Gauges),
+            (L.T("Lignes et barres", "Rows and bars"), AppSettings.Rows), (L.T("Barre fine", "Thin bar"), AppSettings.Bar)), stacked: true);
+        Row(L.T("Taille", "Size"), null, Slider(S.GameScale, 0.6, 1.5, v => $"{v * 100:0} %", v => S.GameScale = v));
+        Row(L.T("Opacité du fond", "Background opacity"), null, Slider(S.GameBackgroundOpacity, 0, 1, v => $"{v * 100:0} %", v => S.GameBackgroundOpacity = v));
     }
 
     void UpdatesPage()

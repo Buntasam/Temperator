@@ -67,8 +67,8 @@ sealed class Updater
             app.Settings.LastUpdateCheck = DateTime.Now;
             app.Settings.Save();
 
-            string tag = (root.GetProperty("tag_name").GetString() ?? "").TrimStart('v', 'V');
-            if (!Version.TryParse(tag, out var latest) || !Version.TryParse(App.Version, out var current) || latest <= current)
+            string tag = root.GetProperty("tag_name").GetString() ?? "";
+            if (NewerVersion(tag, App.Version) is not Version latest)
             {
                 Available = null;
                 if (manual) app.Notify(L.T("Temperator est à jour", "Temperator is up to date"), L.T($"Tu as la dernière version ({App.Version}).", $"You have the latest version ({App.Version})."));
@@ -108,11 +108,7 @@ sealed class Updater
             // l'installeur doit correspondre à l'empreinte publiée avec la release, sinon on n'installe rien
             if (sumsUrl == null) throw new InvalidDataException(L.T("Pas d'empreinte SHA-256 publiée avec cette version : mise à jour annulée.", "No SHA-256 fingerprint published with this version: update cancelled."));
             string sums = await Http.GetStringAsync(sumsUrl);
-            string? expected = sums.Split('\n')
-                .Select(l => l.Trim().Split(new[] { ' ', '\t', '*' }, StringSplitOptions.RemoveEmptyEntries))
-                .FirstOrDefault(p => p.Length >= 2 && p[1].Equals(setupName, StringComparison.OrdinalIgnoreCase))?[0];
-            string actual = Convert.ToHexString(SHA256.HashData(data));
-            if (expected == null || !expected.Equals(actual, StringComparison.OrdinalIgnoreCase))
+            if (!Matches(data, ExpectedHash(sums, setupName)))
                 throw new InvalidDataException(L.T("L'empreinte SHA-256 du fichier téléchargé ne correspond pas : mise à jour annulée.", "The downloaded file's SHA-256 fingerprint doesn't match: update cancelled."));
 
             string dir = Path.Combine(Path.GetTempPath(), "Temperator-update");
@@ -131,6 +127,22 @@ sealed class Updater
         }
         finally { busy = false; }
     }
+
+    // ------------------------------------------------------------------ logique pure (testée)
+
+    /// <summary>La version publiée (« v1.6.0 ») si elle est plus récente que celle installée, sinon null.</summary>
+    public static Version? NewerVersion(string tag, string installed) =>
+        Version.TryParse(tag.Trim().TrimStart('v', 'V'), out var latest) && Version.TryParse(installed, out var current) && latest > current ? latest : null;
+
+    /// <summary>L'empreinte annoncée pour ce fichier dans un SHA256SUMS.txt (« empreinte  nom », ou « empreinte *nom »).</summary>
+    public static string? ExpectedHash(string sums, string fileName) =>
+        sums.Split('\n')
+            .Select(l => l.Trim().Split(new[] { ' ', '\t', '*' }, StringSplitOptions.RemoveEmptyEntries))
+            .FirstOrDefault(p => p.Length >= 2 && p[1].Equals(fileName, StringComparison.OrdinalIgnoreCase))?[0];
+
+    /// <summary>Le fichier téléchargé correspond-il à l'empreinte annoncée ?</summary>
+    public static bool Matches(byte[] data, string? expected) =>
+        expected != null && expected.Equals(Convert.ToHexString(SHA256.HashData(data)), StringComparison.OrdinalIgnoreCase);
 
     static void CleanUp()
     {

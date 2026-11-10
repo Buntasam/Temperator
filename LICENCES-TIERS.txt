@@ -10,6 +10,10 @@ RAMSPDToolkit, DiskInfoToolkit, BlackSharp.Core - dépendances de LibreHardwareM
 HidSharp - Apache License 2.0
   https://www.zer7.com/software/hidsharp
 
+Microsoft.Diagnostics.Tracing.TraceEvent - MIT License (Microsoft)
+  https://github.com/microsoft/perfview
+  (lecture des événements DirectX pour le compteur de FPS)
+
 Mono.Posix.NETStandard - MIT License
   https://github.com/mono/mono
 
