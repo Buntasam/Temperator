@@ -21,7 +21,7 @@ Write-Host "Temperator $Version" -ForegroundColor Cyan
 Write-Host '1/2  Application'
 dotnet publish $proj -c Release -o $app -p:Version=$Version --nologo -v quiet
 if ($LASTEXITCODE) { throw 'Échec de la compilation de Temperator.' }
-Copy-Item LICENCES-TIERS.txt $app
+Copy-Item LICENSE, LICENCES-TIERS.txt $app
 Get-ChildItem $app -Filter *.pdb | Remove-Item
 Compress-Archive -Path "$app\*" -DestinationPath (Join-Path $payload 'Temperator.zip') -CompressionLevel Optimal
 

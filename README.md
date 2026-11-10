@@ -131,6 +131,19 @@ refuse d'installer une version sans empreinte SHA-256 correspondante.
 
 Les réglages sont dans `%ProgramData%\Temperator\settings.json`, et les erreurs dans `erreurs.log` au même endroit.
 
-## Licences
+## Contribuer
 
-Les composants tiers et leurs licences sont listés dans [LICENCES-TIERS.txt](LICENCES-TIERS.txt).
+Les améliorations se proposent **uniquement sur GitHub**, par une issue ou une pull request : voir [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Licence
+
+Temperator n'est **pas open source**. Le code est visible, mais tous les droits sont réservés (voir [LICENSE](LICENSE)).
+
+- ✅ Télécharger, installer et utiliser Temperator gratuitement, pour un usage personnel.
+- ✅ Lire le code, et le modifier pour toi seul.
+- ✅ Proposer des améliorations sur ce dépôt (fork uniquement pour ouvrir une pull request).
+- ✅ Montrer le widget en capture, en vidéo ou en stream, et partager le lien vers ce dépôt.
+- ❌ Republier, redistribuer ou héberger ailleurs Temperator, modifié ou non.
+- ❌ Toute utilisation commerciale sans l'accord écrit de l'auteur.
+
+Les composants tiers (LibreHardwareMonitor, HidSharp…) gardent leur propre licence : voir [LICENCES-TIERS.txt](LICENCES-TIERS.txt).

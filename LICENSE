@@ -1,0 +1,138 @@
+LICENCE DE TEMPERATOR
+Copyright (c) 2026 Buntasam. Tous droits réservés.
+
+Temperator (le code source, les installeurs, les images et la documentation de ce dépôt,
+ci-après « le Logiciel ») est mis à disposition gratuitement, aux conditions ci-dessous.
+Le Logiciel n'est pas un logiciel libre ni open source : son code est visible, mais tous
+les droits qui ne sont pas accordés ici restent à l'auteur.
+
+1. CE QUI EST AUTORISÉ
+
+   a. Télécharger le Logiciel depuis le dépôt officiel, l'installer et l'utiliser, sur
+      autant d'ordinateurs que tu veux, pour un usage personnel et non commercial.
+   b. Lire et étudier le code source.
+   c. Modifier le code pour ton propre usage, sans diffuser la version modifiée.
+   d. Faire un fork du dépôt sur GitHub, dans le seul but de proposer des améliorations
+      au dépôt officiel par une pull request (voir l'article 3).
+   e. Partager le lien vers le dépôt officiel ou vers sa page Releases :
+      https://github.com/Buntasam/Temperator
+   f. Montrer le Logiciel à l'écran (captures, vidéos, streams), même sur une chaîne
+      monétisée, tant que tu ne le redistribues pas.
+
+2. CE QUI EST INTERDIT, SAUF ACCORD ÉCRIT DE L'AUTEUR
+
+   a. Redistribuer, republier ou héberger ailleurs tout ou partie du Logiciel, modifié ou
+      non : exécutables, installeurs, code source, images. Cela comprend les autres sites,
+      magasins d'applications, forums, serveurs de téléchargement et dépôts de code.
+   b. Publier une version modifiée ou dérivée du Logiciel, ou un logiciel qui en reprend
+      une partie substantielle.
+   c. Toute utilisation commerciale, notamment : vendre le Logiciel ou un accès à
+      celui-ci, l'inclure dans un produit ou un service payant, l'utiliser pour le compte
+      d'une entreprise ou d'une organisation à but lucratif, ou en tirer un revenu de
+      quelque manière que ce soit (hors article 1.f).
+   d. Retirer ou modifier les mentions de copyright, cette licence ou le fichier
+      LICENCES-TIERS.txt.
+
+3. CONTRIBUTIONS
+
+   Les améliorations se proposent uniquement sur le dépôt officiel GitHub, par une issue
+   ou une pull request. En envoyant une contribution, tu confirmes que tu as le droit de
+   le faire, et tu accordes à l'auteur une licence mondiale, gratuite, perpétuelle,
+   irrévocable et non exclusive d'utiliser, de modifier, de distribuer et de
+   sous-licencier ta contribution, sous n'importe quelles conditions, y compris
+   celles-ci. L'auteur n'est pas obligé d'accepter une contribution.
+
+4. COMPOSANTS TIERS
+
+   Le Logiciel utilise des composants d'autres auteurs (LibreHardwareMonitor, HidSharp,
+   etc.), listés dans LICENCES-TIERS.txt. Ils restent sous leur propre licence
+   (MPL 2.0, Apache 2.0, MIT), que la présente licence ne restreint pas. Le pilote PawnIO
+   et .NET sont installés séparément, depuis leurs sources officielles, sous leurs propres
+   conditions.
+
+5. ABSENCE DE GARANTIE
+
+   Le Logiciel est fourni « tel quel », sans garantie d'aucune sorte. Les valeurs
+   affichées proviennent des capteurs du matériel et peuvent être inexactes. Dans la
+   mesure permise par la loi, l'auteur n'est pas responsable des dommages liés à
+   l'utilisation du Logiciel, y compris au matériel ou aux données.
+
+6. FIN DES DROITS
+
+   Si tu ne respectes pas cette licence, les droits qu'elle t'accorde prennent fin
+   automatiquement.
+
+7. AUTRES UTILISATIONS
+
+   Pour toute utilisation non prévue ici (redistribution, usage commercial, partenariat),
+   demande l'accord de l'auteur sur GitHub : https://github.com/Buntasam
+
+En cas de différence entre les deux versions, la version française fait foi.
+
+--------------------------------------------------------------------------------------
+
+TEMPERATOR LICENSE (English translation)
+Copyright (c) 2026 Buntasam. All rights reserved.
+
+Temperator (the source code, installers, images and documentation in this repository,
+"the Software") is made available free of charge under the terms below. The Software is
+not free or open-source software: its code is visible, but all rights not granted here
+are reserved by the author.
+
+1. YOU MAY
+
+   a. Download the Software from the official repository, install it and use it on as
+      many computers as you like, for personal, non-commercial use.
+   b. Read and study the source code.
+   c. Modify the code for your own use, without distributing the modified version.
+   d. Fork the repository on GitHub solely to propose improvements to the official
+      repository through a pull request (see section 3).
+   e. Share links to the official repository or its Releases page:
+      https://github.com/Buntasam/Temperator
+   f. Show the Software on screen (screenshots, videos, streams), including on a
+      monetized channel, as long as you do not redistribute it.
+
+2. YOU MAY NOT, WITHOUT THE AUTHOR'S WRITTEN PERMISSION
+
+   a. Redistribute, republish or host elsewhere all or part of the Software, modified or
+      not: executables, installers, source code, images. This includes other websites,
+      app stores, forums, download servers and code repositories.
+   b. Publish a modified or derivative version of the Software, or software that reuses
+      a substantial part of it.
+   c. Use the Software commercially, including: selling the Software or access to it,
+      including it in a paid product or service, using it on behalf of a for-profit
+      company or organization, or earning revenue from it in any way (except 1.f).
+   d. Remove or alter the copyright notices, this license or the LICENCES-TIERS.txt file.
+
+3. CONTRIBUTIONS
+
+   Improvements may only be proposed on the official GitHub repository, through an issue
+   or a pull request. By submitting a contribution, you confirm you have the right to do
+   so, and you grant the author a worldwide, royalty-free, perpetual, irrevocable,
+   non-exclusive license to use, modify, distribute and sublicense your contribution
+   under any terms, including these. The author is not required to accept contributions.
+
+4. THIRD-PARTY COMPONENTS
+
+   The Software uses components by other authors (LibreHardwareMonitor, HidSharp, etc.),
+   listed in LICENCES-TIERS.txt. They remain under their own licenses (MPL 2.0,
+   Apache 2.0, MIT), which this license does not restrict. The PawnIO driver and .NET are
+   installed separately from their official sources, under their own terms.
+
+5. NO WARRANTY
+
+   The Software is provided "as is", without warranty of any kind. Displayed values come
+   from hardware sensors and may be inaccurate. To the extent permitted by law, the
+   author is not liable for any damage arising from the use of the Software, including
+   to hardware or data.
+
+6. TERMINATION
+
+   If you do not comply with this license, the rights it grants you end automatically.
+
+7. OTHER USES
+
+   For any use not covered here (redistribution, commercial use, partnership), ask the
+   author for permission on GitHub: https://github.com/Buntasam
+
+If the two versions differ, the French version prevails.
