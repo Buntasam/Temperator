@@ -262,6 +262,7 @@ public partial class App : Application
         updates.Items.Add(Item("Rechercher maintenant", () => _ = updater.Check(manual: true)));
         updates.Items.Add(new MenuItem { Header = $"Version installée : {Version}", IsEnabled = false });
         m.Items.Add(updates);
+        m.Items.Add(Item("Licence et conditions d'utilisation", OpenLicense));
         m.Items.Add(Item(widget.IsVisible ? "Masquer le widget" : "Afficher le widget", ToggleWidget));
         m.Items.Add(Item("Quitter Temperator", Quit));
         return m;
@@ -307,6 +308,18 @@ public partial class App : Application
         }
         row.Children.Add(slider);
         return new MenuItem { Header = row, StaysOpenOnClick = true };
+    }
+
+    /// <summary>La licence installée avec l'application (Bloc-notes), sinon celle du dépôt GitHub.</summary>
+    static void OpenLicense()
+    {
+        try
+        {
+            string file = Path.Combine(AppContext.BaseDirectory, "LICENSE");
+            if (File.Exists(file)) System.Diagnostics.Process.Start("notepad.exe", "\"" + file + "\"");
+            else System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo($"https://github.com/{Updater.Repo}/blob/main/LICENSE") { UseShellExecute = true });
+        }
+        catch (Exception ex) { Log(ex); }
     }
 
     static MenuItem Item(string text, Action action)

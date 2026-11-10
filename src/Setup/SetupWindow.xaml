@@ -44,7 +44,26 @@
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Opacity" Value="0.88"/></Trigger>
               <Trigger Property="IsPressed" Value="True"><Setter TargetName="B" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="0.96" ScaleY="0.96"/></Setter.Value></Setter></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter TargetName="B" Property="Opacity" Value="0.35"/><Setter Property="Cursor" Value="Arrow"/></Trigger>
             </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- barre de défilement fine (texte de la licence) -->
+    <Style x:Key="ThinThumb" TargetType="Thumb">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Thumb"><Border CornerRadius="3" Background="#40F1F3F6"/></ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style TargetType="ScrollBar">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Width" Value="6"/>
+      <Setter Property="MinWidth" Value="6"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ScrollBar">
+            <Track x:Name="PART_Track" IsDirectionReversed="True"><Track.Thumb><Thumb Style="{StaticResource ThinThumb}"/></Track.Thumb></Track>
           </ControlTemplate>
         </Setter.Value>
       </Setter>
@@ -150,8 +169,31 @@
             </DockPanel>
           </StackPanel>
           <TextBlock x:Name="AllGood" Text="✓  Tout ce qu'il faut est déjà sur ce PC (.NET 10, pilote PawnIO)." FontSize="12.5" Foreground="#4ED8C0" Margin="0,0,0,6"/>
+          <DockPanel x:Name="RowLicense" Style="{StaticResource Row}" Cursor="Hand" Margin="0,10,0,6">
+            <CheckBox x:Name="OptLicense" DockPanel.Dock="Right" Style="{StaticResource Toggle}" IsChecked="False" VerticalAlignment="Center"/>
+            <StackPanel Margin="0,0,16,0">
+              <TextBlock Style="{StaticResource Title}" Text="J'accepte la licence de Temperator"/>
+              <TextBlock Style="{StaticResource Sub}">
+                <Run Text="Usage personnel et gratuit. Pas de redistribution ni d'usage commercial."/>
+                <Run x:Name="LicenseLink" Text="Lire la licence" Foreground="#4ED8C0" TextDecorations="Underline" Cursor="Hand"/>
+              </TextBlock>
+            </StackPanel>
+          </DockPanel>
           <TextBlock x:Name="PathText" FontSize="11.5" Foreground="#8E97A4" Opacity="0.7" Margin="0,4,0,0"/>
         </StackPanel>
+      </DockPanel>
+
+      <!-- écran : texte de la licence -->
+      <DockPanel x:Name="PageLicense" Grid.Row="1" Visibility="Collapsed">
+        <DockPanel DockPanel.Dock="Bottom" LastChildFill="False" Margin="0,14,0,0">
+          <Button x:Name="BtnAccept" DockPanel.Dock="Right" Style="{StaticResource Primary}" Content="J'accepte"/>
+          <Button x:Name="BtnBack" DockPanel.Dock="Right" Style="{StaticResource Ghost}" Content="Retour"/>
+        </DockPanel>
+        <Border CornerRadius="10" Background="#0CFFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" Padding="14,10,6,10">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,10,0">
+            <TextBlock x:Name="LicenseText" FontSize="12" Foreground="#C9CFD8" TextWrapping="Wrap"/>
+          </ScrollViewer>
+        </Border>
       </DockPanel>
 
       <!-- écran : progression -->

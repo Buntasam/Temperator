@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -45,6 +46,16 @@ namespace TemperatorSetup
                 BtnGoUninstall.Visibility = Visibility.Visible;
             }
 
+            // la licence doit être acceptée avant d'installer
+            LicenseText.Text = ReadLicense();
+            BtnInstall.IsEnabled = false;
+            OptLicense.Checked += (_, _) => BtnInstall.IsEnabled = true;
+            OptLicense.Unchecked += (_, _) => BtnInstall.IsEnabled = false;
+            LicenseLink.MouseLeftButtonUp += (_, e) => { e.Handled = true; ShowPage(PageLicense); };   // le lien a son propre clic
+            RowLicense.MouseLeftButtonUp += (_, _) => OptLicense.IsChecked = OptLicense.IsChecked != true;
+            BtnBack.Click += (_, _) => ShowPage(PageOptions);
+            BtnAccept.Click += (_, _) => { OptLicense.IsChecked = true; ShowPage(PageOptions); };
+
             // un clic n'importe où sur la ligne bascule l'interrupteur
             RowAuto.MouseLeftButtonUp += (_, _) => OptAuto.IsChecked = OptAuto.IsChecked != true;
             RowDesk.MouseLeftButtonUp += (_, _) => OptDesk.IsChecked = OptDesk.IsChecked != true;
@@ -71,6 +82,40 @@ namespace TemperatorSetup
             if (uninstall) ShowUninstallConfirm();
         }
 
+        static string ReadLicense()
+        {
+            using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("LICENSE.txt"))
+            {
+                if (s == null) return "Licence : https://github.com/Buntasam/Temperator/blob/main/LICENSE";
+                using (var r = new StreamReader(s)) return Reflow(r.ReadToEnd());
+            }
+        }
+
+        /// <summary>Le fichier est coupé à ~90 caractères : on recolle les paragraphes pour l'affichage.</summary>
+        static string Reflow(string text)
+        {
+            var sb = new System.Text.StringBuilder();
+            bool blank = true;
+            foreach (string raw in text.Replace("\r\n", "\n").Split('\n'))
+            {
+                string line = raw.Trim();
+                if (line.Length == 0)
+                {
+                    if (!blank) sb.Append("\n\n");
+                    blank = true;
+                    continue;
+                }
+                bool item = System.Text.RegularExpressions.Regex.IsMatch(line, @"^[a-z]\.\s");
+                bool start = blank || item || line.StartsWith("---") || line.StartsWith("Copyright");
+                if (!start) sb.Append(' ');
+                else if (!blank) sb.Append('\n');
+                if (item) sb.Append("    ");
+                sb.Append(line);
+                blank = false;
+            }
+            return sb.ToString().TrimEnd();
+        }
+
         void ApplyMissing(bool runtime, bool pawn)
         {
             int n = (runtime ? 1 : 0) + (pawn ? 1 : 0);
@@ -78,7 +123,7 @@ namespace TemperatorSetup
             AllGood.Visibility = n > 0 ? Visibility.Collapsed : Visibility.Visible;
             RowDotNet.Visibility = runtime ? Visibility.Visible : Visibility.Collapsed;
             RowPawn.Visibility = pawn ? Visibility.Visible : Visibility.Collapsed;
-            Height = 466 + (n > 0 ? 30 + 60 * n : 0);
+            Height = 530 + (n > 0 ? 30 + 60 * n : 0);
         }
 
         // ------------------------------------------------------------------ écrans
@@ -107,7 +152,7 @@ namespace TemperatorSetup
 
         void ShowPage(FrameworkElement page)
         {
-            foreach (var p in new FrameworkElement[] { PageOptions, PageProgress, PageMessage })
+            foreach (var p in new FrameworkElement[] { PageOptions, PageLicense, PageProgress, PageMessage })
                 p.Visibility = p == page ? Visibility.Visible : Visibility.Collapsed;
             page.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)));
         }
@@ -197,7 +242,7 @@ namespace TemperatorSetup
                 Card.Measure(new Size(Width, Height));
                 Card.Arrange(new Rect(0, 0, Width, Height));
                 Card.UpdateLayout();
-                foreach (var p in new UIElement[] { PageOptions, PageProgress, PageMessage })
+                foreach (var p in new UIElement[] { PageOptions, PageLicense, PageProgress, PageMessage })
                 {
                     p.BeginAnimation(OpacityProperty, null);
                     p.Opacity = 1;
@@ -210,6 +255,11 @@ namespace TemperatorSetup
             }
 
             Snap("1-options.png");
+            OptLicense.IsChecked = true;
+            Snap("1a-options-licence-acceptee.png");
+            ShowPage(PageLicense);
+            Snap("1c-licence.png");
+            ShowPage(PageOptions);
             ApplyMissing(true, true);
             Snap("1b-options-pc-sans-dotnet-ni-pawnio.png");
             ApplyMissing(false, false);

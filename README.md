@@ -75,7 +75,7 @@ Les températures et l'utilisation de ton PC, toujours à l'écran : un petit wi
 
 1. Télécharge **`Temperator-Setup-x.y.z.exe`** depuis la page [Releases](https://github.com/Buntasam/Temperator/releases/latest).
 2. Lance-le et accepte la demande d'administrateur.
-3. Choisis tes options, puis clique sur **Installer**.
+3. Choisis tes options, accepte la [licence](LICENSE), puis clique sur **Installer**.
 
 <p align="center"><img src="docs/installeur.png" width="460" alt="L'installeur"></p>
 
@@ -95,6 +95,7 @@ L'installeur ajoute aussi ce qui manque :
 
 **Installation silencieuse** : `Temperator-Setup-x.y.z.exe /S`. Options possibles : `/noautostart /nodesktop /nolaunch`
 (et `/uninstall /S` pour désinstaller sans fenêtre). Le journal est écrit dans `%TEMP%\temperator-setup.log`.
+Installer en silencieux revient à accepter la [licence](LICENSE).
 
 L'installeur est un programme C# (.NET Framework 4.8, déjà présent sur Windows 10 et 11) : aucun script PowerShell.
 
