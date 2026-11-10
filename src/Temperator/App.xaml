@@ -1,0 +1,136 @@
+<Application x:Class="Temperator.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+  <Application.Resources>
+    <SolidColorBrush x:Key="Accent" Color="#4ED8C0"/>
+    <SolidColorBrush x:Key="Warn" Color="#FFB547"/>
+    <SolidColorBrush x:Key="Hot" Color="#FF5A5F"/>
+    <SolidColorBrush x:Key="Text" Color="#F1F3F6"/>
+    <SolidColorBrush x:Key="Soft" Color="#C9CFD8"/>
+    <SolidColorBrush x:Key="Muted" Color="#8E97A4"/>
+    <SolidColorBrush x:Key="Line" Color="#26F1F3F6"/>
+    <SolidColorBrush x:Key="MenuBg" Color="#1A1D24"/>
+    <LinearGradientBrush x:Key="CardBg" StartPoint="0,0" EndPoint="0,1">
+      <GradientStop Color="#171A21" Offset="0"/>
+      <GradientStop Color="#0C0E12" Offset="1"/>
+    </LinearGradientBrush>
+    <FontFamily x:Key="TitleFont">Bahnschrift, Segoe UI</FontFamily>
+
+    <!-- menu clic droit : sombre et arrondi, comme le reste -->
+    <Style TargetType="ContextMenu">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="SnapsToDevicePixels" Value="True"/>
+      <Setter Property="HasDropShadow" Value="False"/>
+      <Setter Property="FontFamily" Value="Segoe UI"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Foreground" Value="#F1F3F6"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ContextMenu">
+            <Grid Margin="0,0,10,10">
+              <Border Background="#1A1D24" CornerRadius="10">
+                <Border.Effect><DropShadowEffect ShadowDepth="3" BlurRadius="12" Opacity="0.5"/></Border.Effect>
+              </Border>
+              <Border BorderBrush="#33F1F3F6" BorderThickness="1" CornerRadius="10" Padding="0,5" MinWidth="240">
+                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"/>
+              </Border>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="MenuItem">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Foreground" Value="#F1F3F6"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="MenuItem">
+            <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Margin="5,0" Padding="8,6,10,6">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="22"/>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="Check" Text="✓" Foreground="#4ED8C0" FontWeight="Bold" VerticalAlignment="Center" Visibility="Hidden"/>
+                <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/>
+                <TextBlock x:Name="Arrow" Grid.Column="2" Text="›" FontSize="16" Margin="18,-3,0,0" Foreground="#8E97A4" VerticalAlignment="Center" Visibility="Collapsed"/>
+                <Popup x:Name="PART_Popup" Placement="Right" HorizontalOffset="8" VerticalOffset="-11"
+                       AllowsTransparency="True" Focusable="False" PopupAnimation="Fade"
+                       IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}">
+                  <Grid Margin="0,0,10,10">
+                    <Border Background="#1A1D24" CornerRadius="10">
+                      <Border.Effect><DropShadowEffect ShadowDepth="3" BlurRadius="12" Opacity="0.5"/></Border.Effect>
+                    </Border>
+                    <Border BorderBrush="#33F1F3F6" BorderThickness="1" CornerRadius="10" Padding="0,5" MinWidth="190">
+                      <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                    </Border>
+                  </Grid>
+                </Popup>
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Bd" Property="Background" Value="#24F1F3F6"/></Trigger>
+              <Trigger Property="IsChecked" Value="True"><Setter TargetName="Check" Property="Visibility" Value="Visible"/></Trigger>
+              <Trigger Property="Role" Value="SubmenuHeader"><Setter TargetName="Arrow" Property="Visibility" Value="Visible"/></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Separator"><Border Height="1" Background="#22F1F3F6" Margin="12,5"/></ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style TargetType="ToolTip">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="HasDropShadow" Value="False"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToolTip">
+            <Border Background="#1A1D24" BorderBrush="#33F1F3F6" BorderThickness="1" CornerRadius="8" Padding="10,6" MaxWidth="340">
+              <ContentPresenter TextElement.Foreground="#F1F3F6" TextElement.FontSize="12" TextElement.FontFamily="Segoe UI">
+                <ContentPresenter.Resources>
+                  <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
+                </ContentPresenter.Resources>
+              </ContentPresenter>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- barre de défilement fine -->
+    <Style x:Key="ThinThumb" TargetType="Thumb">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Thumb"><Border CornerRadius="3" Background="#40F1F3F6"/></ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="ScrollBar">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Width" Value="6"/>
+      <Setter Property="MinWidth" Value="6"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ScrollBar">
+            <Track x:Name="PART_Track" IsDirectionReversed="True">
+              <Track.Thumb><Thumb Style="{StaticResource ThinThumb}"/></Track.Thumb>
+            </Track>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Application.Resources>
+</Application>

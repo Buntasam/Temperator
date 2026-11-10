@@ -1,5 +1,6 @@
 ﻿# Installeur de Temperator (interface graphique WPF, exécutée par Windows PowerShell, signé Microsoft).
-# Lancé par "Installer Temperator.cmd". Se relance tout seul en administrateur.
+# Embarqué dans Temperator-Setup.exe (voir build.ps1), qui le lance en administrateur.
+# Peut aussi être lancé directement, à côté de Temperator.zip : il se relance alors tout seul en administrateur.
 #
 #   (sans option)            interface d'installation
 #   -Uninstall               interface de désinstallation (utilisé par Paramètres > Applications)
@@ -11,7 +12,7 @@ param(
     [string]$Preview,
     [switch]$AutoTest   # tests : l'interface clique "Installer"/"Désinstaller" toute seule puis se ferme
 )
-$Version = '0.1'
+$Version = '1.0.0'   # remplacé par build.ps1 avec la version du projet
 $Payload = Join-Path $PSScriptRoot 'Temperator.zip'      # l'application (à côté de ce script)
 
 # ------------------------------------------------------------------ droits administrateur
@@ -41,15 +42,22 @@ $Engine = {
     function Test-Runtime {
         if (-not (Test-Path $DotNet)) { return $false }
         $ErrorActionPreference = 'Continue'
-        [bool]((& $DotNet --list-runtimes) -match '^Microsoft\.WindowsDesktop\.App 10\.')
+        # .NET 10 ou plus récent (l'application accepte les versions majeures suivantes)
+        [bool](& $DotNet --list-runtimes | Where-Object { $_ -match '^Microsoft\.WindowsDesktop\.App (\d+)\.' -and [int]$Matches[1] -ge 10 })
     }
     function Test-PawnIO { Test-Path 'HKLM:\SYSTEM\CurrentControlSet\Services\PawnIO' }
 
+    # Ferme Temperator : d'abord poliment (il enregistre ses réglages et retire son icône), sinon de force.
     function Stop-Temperator($onlyFrom) {
-        Get-CimInstance Win32_Process -Filter "Name='dotnet.exe'" -ErrorAction SilentlyContinue |
-            Where-Object { $_.CommandLine -match 'Temperator\.dll' -and (-not $onlyFrom -or $_.CommandLine -like "*$onlyFrom*") } |
-            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-        Start-Sleep -Milliseconds 600
+        $quit = $null
+        if ([Threading.EventWaitHandle]::TryOpenExisting('Global\Temperator.Quit', [ref]$quit)) {
+            [void]$quit.Set(); $quit.Dispose()
+            for ($i = 0; $i -lt 20 -and (Get-Process Temperator -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 150 }
+        }
+        Get-Process Temperator -ErrorAction SilentlyContinue |
+            Where-Object { -not $onlyFrom -or $_.Path -like "$onlyFrom*" } |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 300
     }
 
     function Invoke-Winget($id) {
@@ -92,7 +100,7 @@ $Engine = {
         $s.TargetPath = "$env:WINDIR\System32\conhost.exe"            # lance sans fenêtre de console
         $s.Arguments = "--headless schtasks.exe /run /tn `"$task`""    # via la tâche : admin sans demande UAC
         $s.WorkingDirectory = "$dir\app"
-        $s.IconLocation = "$dir\app\Temperator.ico"
+        $s.IconLocation = "$dir\app\Temperator.exe,0"
         $s.Description = 'Temperator - températures et utilisation du PC'
         $s.Save()
     }
@@ -101,6 +109,7 @@ $Engine = {
         $dir = Dir-Of $o.Name; $app = Join-Path $dir 'app'
         & $Report 0.03 'Préparation'
         if (-not [Environment]::Is64BitOperatingSystem -or [Environment]::OSVersion.Version.Major -lt 10) { throw 'Temperator nécessite Windows 10 ou 11 en 64 bits.' }
+        if (-not (Test-Path $o.Payload)) { throw "Fichier introuvable : $($o.Payload). Télécharge à nouveau Temperator-Setup.exe." }
         Stop-Temperator $null
 
         if (-not (Test-Runtime)) {
@@ -122,9 +131,10 @@ $Engine = {
         & $Report 0.6 'Démarrage et raccourcis'
         $user = (Get-CimInstance Win32_ComputerSystem).UserName
         if (-not $user) { $user = "$env:USERDOMAIN\$env:USERNAME" }
-        $action = New-ScheduledTaskAction -Execute "$env:WINDIR\System32\conhost.exe" -Argument "--headless `"$DotNet`" `"$app\Temperator.dll`""
+        $action = New-ScheduledTaskAction -Execute "$app\Temperator.exe" -WorkingDirectory $app
         $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest
-        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+        # Parallel : relancer depuis le raccourci démarre une 2e instance qui demande à la 1re de se réafficher, puis s'arrête
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances Parallel
         $taskArgs = @{ TaskName = $o.Name; Action = $action; Principal = $principal; Settings = $settings; Description = "Temperator $Version"; Force = $true }
         if ($o.AutoStart) { $t = New-ScheduledTaskTrigger -AtLogOn -User $user; $t.Delay = 'PT15S'; $taskArgs.Trigger = $t }
         Register-ScheduledTask @taskArgs | Out-Null      # toujours créée : le raccourci s'en sert
@@ -134,7 +144,7 @@ $Engine = {
         $k = Key-Of $o.Name
         New-Item $k -Force | Out-Null
         $un = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$dir\Temperator-Setup.ps1`" -Uninstall" + $(if ($o.Name -ne 'Temperator') { " -Name `"$($o.Name)`"" } else { '' })
-        $props = @{ DisplayName = 'Temperator'; DisplayVersion = $Version; Publisher = 'Temperator'; DisplayIcon = "$app\Temperator.ico"; InstallLocation = $dir; UninstallString = $un; QuietUninstallString = "$un -Silent" }
+        $props = @{ DisplayName = 'Temperator'; DisplayVersion = $Version; Publisher = 'Temperator'; DisplayIcon = "$app\Temperator.exe"; InstallLocation = $dir; UninstallString = $un; QuietUninstallString = "$un -Silent" }
         foreach ($p in $props.Keys) { Set-ItemProperty $k -Name $p -Value $props[$p] }
         foreach ($p in 'NoModify', 'NoRepair') { Set-ItemProperty $k -Name $p -Value 1 -Type DWord }
         Set-ItemProperty $k -Name EstimatedSize -Value ([int]((Get-ChildItem $dir -Recurse -File | Measure-Object Length -Sum).Sum / 1KB)) -Type DWord
@@ -485,7 +495,7 @@ function Start-Work([bool]$uninstallMode) {
                 Show-Message 'Désinstallé.' 'Temperator a été retiré de ce PC.' $Muted 'M 19,30 L 26,37 L 40,22' 'Terminer'
             } else {
                 $txt = $(if ($Opt.Launch) { "Il est lancé : regarde en haut à droite de l'écran. " } else { 'Lance-le depuis le menu Démarrer. ' }) +
-                       'Glisse-le pour le déplacer, double-clic pour le plan du PC, clic droit pour les réglages.'
+                       "Glisse-le pour le déplacer, double-clic pour le plan du PC, clic droit pour les réglages. Son icône près de l'horloge le masque ou le réaffiche."
                 Show-Message "C'est installé !" $txt $Accent 'M 19,30 L 26,37 L 40,22' 'Terminer'
             }
             $script:mainAction = 'close'
@@ -521,13 +531,14 @@ if ($Preview) {
     Apply-Missing $true $true; Snap '1b-options-pc-sans-dotnet-ni-pawnio.png'; Apply-Missing $false $false
     $ui.Subtitle.Text = 'Installation en cours…'; $ui.LogoArc.Data = [Windows.Media.Geometry]::Parse('M 12.17,45.83 A 23.8,23.8 0 0 1 9.5,15.35')
     $ui.Status.Text = 'Installation de .NET 10 (Microsoft, environ 57 Mo)'; $ui.FillScale.ScaleX = 0.35; Show-Page 'PageProgress'; Snap '2-progression.png'
-    Show-Message "C'est installé !" "Il est lancé : regarde en haut à droite de l'écran. Glisse-le pour le déplacer, double-clic pour le plan du PC, clic droit pour les réglages." $Accent 'M 19,30 L 26,37 L 40,22' 'Terminer'; Snap '3-termine.png'
+    Show-Message "C'est installé !" "Il est lancé : regarde en haut à droite de l'écran. Glisse-le pour le déplacer, double-clic pour le plan du PC, clic droit pour les réglages. Son icône près de l'horloge le masque ou le réaffiche." $Accent 'M 19,30 L 26,37 L 40,22' 'Terminer'; Snap '3-termine.png'
     Show-UninstallConfirm; Snap '4-desinstaller.png'
     Show-Message 'Un problème est survenu.' "Temperator est installé, mais le pilote PawnIO (obligatoire) n'a pas pu s'installer. Vérifie ta connexion internet et relance l'installeur, ou installe PawnIO depuis pawnio.eu." $Danger 'M 22,22 L 36,36 M 36,22 L 22,36' 'Fermer'; Snap '5-erreur.png'
     exit
 }
 
 if ($Uninstall) { Show-UninstallConfirm }
+$win.Add_ContentRendered({ [void]$win.Activate() })   # au premier plan, même lancé depuis Temperator-Setup.exe
 if ($AutoTest) {
     $win.Add_ContentRendered({
         $go = New-Object Windows.Threading.DispatcherTimer; $go.Interval = [TimeSpan]::FromSeconds(3)
