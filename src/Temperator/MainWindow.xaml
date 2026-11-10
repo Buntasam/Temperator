@@ -8,7 +8,10 @@
   <Grid x:Name="Root" Margin="12">
     <Grid.LayoutTransform><ScaleTransform x:Name="Zoom" ScaleX="1" ScaleY="1"/></Grid.LayoutTransform>
 
-    <!-- fond (opaque ou verre teinté) + ombre, à part pour garder un texte net -->
+    <!-- presque invisible (4/255) : le widget reste saisissable même avec un fond à 0 % -->
+    <Border CornerRadius="14" Background="#04808080"/>
+
+    <!-- fond (opaque ou verre teinté) + ombre, à part pour garder un texte net ; son opacité se règle à part -->
     <Border x:Name="Bg" CornerRadius="14" Background="{StaticResource CardBg}">
       <Border.Effect><DropShadowEffect x:Name="Shadow" ShadowDepth="3" BlurRadius="16" Opacity="0.5"/></Border.Effect>
     </Border>
@@ -31,7 +34,8 @@
                      VerticalAlignment="Center"/>
         </DockPanel>
         <StackPanel x:Name="Rows"/>
-        <TextBlock x:Name="Notice" Visibility="Collapsed" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,1"/>
+        <StackPanel x:Name="Gauges" Orientation="Horizontal" HorizontalAlignment="Center" Margin="-3,2,-3,0" Visibility="Collapsed"/>
+        <TextBlock x:Name="Notice" Visibility="Collapsed" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,1" MaxWidth="250" HorizontalAlignment="Left"/>
       </StackPanel>
     </Border>
   </Grid>

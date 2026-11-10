@@ -70,7 +70,7 @@ sealed class Fire
         layer.Children.Add(glow);
         Loop(glow, UIElement.OpacityProperty, 0.55, 1, 0.9, 1.4);
 
-        double tall = Math.Min(h * 0.62, 64);
+        double tall = Math.Min(h * 0.5, 58);   // la moitié basse : les valeurs restent lisibles
         AddRow(w, tall, BackFlame, spacing: 15);
         AddRow(w, tall * 0.62, FrontFlame, spacing: 11);
         for (int i = 0; i < 14; i++) AddEmber(w, h);

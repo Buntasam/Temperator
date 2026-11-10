@@ -109,6 +109,43 @@
       </Setter>
     </Style>
 
+    <!-- curseurs (opacités) -->
+    <Style x:Key="SliderRepeat" TargetType="RepeatButton">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="IsTabStop" Value="False"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RepeatButton">
+            <Border Background="Transparent">
+              <Border Height="4" CornerRadius="2" Background="{TemplateBinding Background}" VerticalAlignment="Center"/>
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="Slider">
+      <Setter Property="OverridesDefaultStyle" Value="True"/>
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Slider">
+            <Track x:Name="PART_Track" Height="22">
+              <Track.DecreaseRepeatButton><RepeatButton Style="{StaticResource SliderRepeat}" Background="#4ED8C0" Command="Slider.DecreaseLarge"/></Track.DecreaseRepeatButton>
+              <Track.IncreaseRepeatButton><RepeatButton Style="{StaticResource SliderRepeat}" Background="#33F1F3F6" Command="Slider.IncreaseLarge"/></Track.IncreaseRepeatButton>
+              <Track.Thumb>
+                <Thumb Cursor="Hand">
+                  <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb"><Ellipse Width="14" Height="14" Fill="#F1F3F6"/></ControlTemplate>
+                  </Thumb.Template>
+                </Thumb>
+              </Track.Thumb>
+            </Track>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <!-- barre de défilement fine -->
     <Style x:Key="ThinThumb" TargetType="Thumb">
       <Setter Property="OverridesDefaultStyle" Value="True"/>

@@ -21,6 +21,10 @@ public sealed class AppSettings
     public bool Translucent { get; set; }
     /// <summary>Aucun fond : seuls le texte et les barres flottent sur l'écran (couleurs adaptées au fond).</summary>
     public bool Transparent { get; set; }
+    /// <summary>Opacité du fond seul (0 à 1), indépendante de l'opacité générale.</summary>
+    public double BackgroundOpacity { get; set; } = 1.0;
+    /// <summary>Affichage en jauges rondes au lieu des lignes et barres.</summary>
+    public bool Gauges { get; set; }
     public bool FireAnimation { get; set; } = true;
     public double Scale { get; set; } = 1.0;
     public double Opacity { get; set; } = 1.0;
@@ -72,6 +76,7 @@ public sealed class AppSettings
     {
         Scale = Math.Clamp(Scale, 0.5, 2.5);
         Opacity = Math.Clamp(Opacity, 0.3, 1.0);
+        BackgroundOpacity = Math.Clamp(BackgroundOpacity, 0.0, 1.0);
         IntervalMs = Math.Clamp(IntervalMs, 250, 10000);
         return this;
     }

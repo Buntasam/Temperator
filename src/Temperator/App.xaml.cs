@@ -141,7 +141,7 @@ public partial class App : Application
     {
         var menu = BuildMenu();
         menu.Opened += (_, _) => widget.PauseTopGuard(true);
-        menu.Closed += (_, _) => widget.PauseTopGuard(false);
+        menu.Closed += (_, _) => { widget.PauseTopGuard(false); Settings.Save(); };   // enregistre aussi les curseurs
         menu.Placement = PlacementMode.MousePoint;
         if (target != null) menu.PlacementTarget = target;
         else Native.SetForegroundWindow(new WindowInteropHelper(widget).Handle);   // pour que le menu se ferme en cliquant ailleurs
@@ -166,10 +166,11 @@ public partial class App : Application
         show.Items.Add(Toggle("Ventilateur", s.ShowFan, v => s.ShowFan = v));
         m.Items.Add(show);
 
+        m.Items.Add(Choice("Affichage", s.Gauges ? 1 : 0, v => s.Gauges = v == 1,
+            ("Lignes et barres", 0), ("Jauges rondes", 1)));
         m.Items.Add(Choice("Taille", s.Scale, v => s.Scale = v,
             ("Petite", 0.85), ("Normale", 1.0), ("Grande", 1.2), ("Très grande", 1.45)));
-        m.Items.Add(Choice("Opacité", s.Opacity, v => s.Opacity = v,
-            ("100 %", 1.0), ("90 %", 0.9), ("75 %", 0.75), ("60 %", 0.6)));
+        m.Items.Add(SliderMenu("Opacité générale", s.Opacity, 0.3, v => s.Opacity = v));
         m.Items.Add(Choice("Actualisation", s.IntervalMs, v => s.IntervalMs = v,
             ("Toutes les 0,5 s", 500), ("Chaque seconde", 1000), ("Toutes les 2 s", 2000), ("Toutes les 5 s", 5000)));
         m.Items.Add(Toggle("Degrés Fahrenheit", s.Fahrenheit, v => s.Fahrenheit = v));
@@ -177,6 +178,7 @@ public partial class App : Application
 
         m.Items.Add(Choice("Fond", s.Transparent ? 2 : s.Translucent ? 1 : 0, v => { s.Translucent = v == 1; s.Transparent = v == 2; },
             ("Opaque", 0), ("Translucide (s'adapte au fond)", 1), ("Aucun fond, 100 % transparent", 2)));
+        m.Items.Add(SliderMenu("Opacité du fond", s.BackgroundOpacity, 0, v => s.BackgroundOpacity = v, enabled: !s.Transparent));
         m.Items.Add(Toggle("Flammes quand c'est trop chaud", s.FireAnimation, v => s.FireAnimation = v));
         m.Items.Add(new Separator());
 
@@ -189,6 +191,26 @@ public partial class App : Application
         m.Items.Add(Item(widget.IsVisible ? "Masquer le widget" : "Afficher le widget", ToggleWidget));
         m.Items.Add(Item("Quitter Temperator", Quit));
         return m;
+    }
+
+    /// <summary>Sous-menu avec un curseur de 0 (ou min) à 100 % : le widget change en direct, enregistré à la fermeture du menu.</summary>
+    MenuItem SliderMenu(string text, double value, double min, Action<double> set, bool enabled = true)
+    {
+        var sub = new MenuItem { Header = text, IsEnabled = enabled };
+        var label = new TextBlock { Width = 44, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Foreground = Theme.Soft, Text = $"{value * 100:0} %" };
+        var slider = new Slider { Minimum = min, Maximum = 1, Value = value, Width = 170, IsMoveToPointEnabled = true, SmallChange = 0.05, LargeChange = 0.1, VerticalAlignment = VerticalAlignment.Center };
+        slider.ValueChanged += (_, e) =>
+        {
+            label.Text = $"{e.NewValue * 100:0} %";
+            set(e.NewValue);
+            widget.ApplySettings();
+        };
+        var row = new DockPanel { Margin = new Thickness(-14, 2, 0, 2) };
+        DockPanel.SetDock(label, Dock.Right);
+        row.Children.Add(label);
+        row.Children.Add(slider);
+        sub.Items.Add(new MenuItem { Header = row, StaysOpenOnClick = true });
+        return sub;
     }
 
     static MenuItem Item(string text, Action action)
@@ -305,6 +327,34 @@ public partial class App : Application
                     File.AppendAllText(Path.Combine(dir, "lectures.txt"), $"{name}: fond={Palette.Mix(a, b, 0.5)} luma={Backdrop.Of(Palette.Mix(a, b, 0.5)).Luma:0.00} palette claire={widget.LightPalette}\n");
                     SavePng(widget, Path.Combine(dir, name), new LinearGradientBrush(a, b, 35));
                 }
+            }
+
+            if (Demo)
+            {
+                var normal = Last;
+                Settings.Transparent = Settings.Translucent = false;
+                Settings.Gauges = true;
+                widget.ApplySettings();
+                widget.Apply(normal);
+                await Task.Delay(900);
+                SavePng(widget, Path.Combine(dir, "widget-jauges.png"));
+
+                widget.Apply(new Readings
+                {
+                    Ready = true, CpuName = normal.CpuName, CpuTemp = 94, CpuLoad = 100, GpuName = normal.GpuName, GpuTemp = 79, GpuLoad = 97,
+                    RamUsed = 13.9f, RamTotal = 15.7f, RamLoad = 88, DiskTemp = 47, DiskLoad = 35,
+                });
+                await Task.Delay(1600);
+                SavePng(widget, Path.Combine(dir, "widget-jauges-feu.png"));
+
+                widget.Apply(normal);
+                await Task.Delay(2500);
+                Settings.BackgroundOpacity = 0.4;
+                widget.ApplySettings();
+                var (a, b) = (Color.FromRgb(0x0F, 0x20, 0x27), Color.FromRgb(0x2C, 0x53, 0x64));
+                widget.ApplyBackdrop(Backdrop.Of(Palette.Mix(a, b, 0.5)), animate: false);
+                await Task.Delay(300);
+                SavePng(widget, Path.Combine(dir, "widget-jauges-fond-40.png"), new LinearGradientBrush(a, b, 35));
             }
 
             // test du lecteur d'écran sur une zone réelle

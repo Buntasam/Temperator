@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     readonly App app;
     readonly Palette palette = new();
     readonly MetricRow cpu, gpu, ram, disk, fan;
+    readonly GaugeTile gCpu, gGpu, gRam, gDisk, gFan;
     readonly Fire fire;
     readonly DispatcherTimer backdropTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
     readonly DropShadowEffect halo = new() { ShadowDepth = 0, BlurRadius = 6, Opacity = 0.6 };
@@ -42,6 +43,13 @@ public partial class MainWindow : Window
         cpu.Visible = app.Settings.ShowCpu;
         ram.Visible = app.Settings.ShowRam;
 
+        gCpu = new("CPU", palette); gGpu = new("GPU", palette); gRam = new("RAM", palette);
+        gDisk = new("DISQUE", palette); gFan = new("VENTILO", palette);
+        foreach (var tile in new[] { gCpu, gGpu, gRam, gDisk, gFan }) Gauges.Children.Add(tile.Root);
+        gGpu.Visible = gDisk.Visible = gFan.Visible = false;
+        gCpu.Visible = app.Settings.ShowCpu;
+        gRam.Visible = app.Settings.ShowRam;
+
         Card.BorderBrush = palette.Line;
         LogoArc.Stroke = palette.Accent;
         LogoDot.Fill = palette.Text;
@@ -60,7 +68,17 @@ public partial class MainWindow : Window
 
         SourceInitialized += (_, _) => Native.MakeToolWindow(this);
         Loaded += (_, _) => EnsureOnScreen();
-        SizeChanged += (_, _) => { if (app.Settings.Left == null) PlaceDefault(); };
+        SizeChanged += (_, e) =>
+        {
+            if (app.Settings.Left == null) { PlaceDefault(); return; }
+            // collé au bord droit : on garde le bord droit en place quand la largeur change (affichage, taille…)
+            double dw = e.NewSize.Width - e.PreviousSize.Width;
+            if (e.PreviousSize.Width > 0 && Math.Abs(dw) > 0.5 && Left + e.PreviousSize.Width >= SystemParameters.WorkArea.Right - 40)
+            {
+                Left -= dw;
+                app.Settings.Left = Left;
+            }
+        };
         IsVisibleChanged += (_, _) => UpdateBackdropTimer();
         Root.MouseLeftButtonDown += OnLeftDown;
         Root.MouseRightButtonUp += (_, e) => { app.ShowMenu(Root); e.Handled = true; };
@@ -123,11 +141,14 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ apparence
 
-    // fond « invisible » : presque transparent (4/255) pour que le widget reste saisissable partout
-    static readonly Brush NoBackground = Frozen(new SolidColorBrush(Color.FromArgb(4, 0x80, 0x80, 0x80)));
+    /// <summary>Opacité réelle du fond : 0 en mode « aucun fond », sinon le réglage « Opacité du fond ».</summary>
+    double BgOpacity => app.Settings.Transparent ? 0 : app.Settings.BackgroundOpacity;
 
-    /// <summary>Translucide ou sans fond : les couleurs suivent le fond de l'écran.</summary>
-    bool Adaptive => app.Settings.Translucent || app.Settings.Transparent;
+    /// <summary>
+    /// Les couleurs suivent le fond de l'écran : en translucide, sans fond, ou dès que le fond devient assez
+    /// transparent pour laisser voir ce qu'il y a derrière.
+    /// </summary>
+    bool Adaptive => app.Settings.Translucent || BgOpacity < 0.6;
 
     public void ApplySettings()
     {
@@ -138,29 +159,27 @@ public partial class MainWindow : Window
         Root.Opacity = s.Opacity;
         Zoom.ScaleX = Zoom.ScaleY = s.Scale;
 
-        if (s.Transparent)
+        // affichage : lignes et barres, ou jauges rondes
+        Rows.Visibility = s.Gauges ? Visibility.Collapsed : Visibility.Visible;
+        Gauges.Visibility = s.Gauges ? Visibility.Visible : Visibility.Collapsed;
+        Body.Width = s.Gauges ? double.NaN : 218;
+        Body.MinWidth = s.Gauges ? 150 : 0;
+
+        // fond : verre teinté ou dégradé sombre, avec sa propre opacité (l'ombre suit)
+        double bg = BgOpacity;
+        Bg.Background = s.Translucent ? palette.Tint : (Brush)FindResource("CardBg");
+        Bg.Opacity = bg;
+        Shadow.Opacity = s.Translucent ? 0.16 : 0.5;
+        Card.BorderBrush = bg >= 0.15 ? palette.Line : Brushes.Transparent;
+
+        if (Adaptive)
         {
-            Bg.Background = NoBackground;
-            Card.BorderBrush = Brushes.Transparent;
-            Shadow.Opacity = 0;
-            halo.BlurRadius = 9;   // plus de fond : le halo seul porte la lisibilité
+            halo.BlurRadius = bg < 0.3 ? 9 : 6;   // moins il y a de fond, plus le halo porte la lisibilité
             Body.Effect = halo;
-            SampleBackdrop(animate: false);
-        }
-        else if (s.Translucent)
-        {
-            Bg.Background = palette.Tint;
-            Card.BorderBrush = palette.Line;
-            Shadow.Opacity = 0.16;
-            halo.BlurRadius = 6;
-            Body.Effect = halo;   // halo discret autour du texte : lisible sur n'importe quel fond
             SampleBackdrop(animate: false);
         }
         else
         {
-            Bg.Background = (Brush)FindResource("CardBg");
-            Card.BorderBrush = palette.Line;
-            Shadow.Opacity = 0.5;
             Body.Effect = null;
             palette.Use(light: false, animate: false);
         }
@@ -169,13 +188,7 @@ public partial class MainWindow : Window
         if (!s.FireAnimation) fire.Set(0);
     }
 
-    double HaloOpacity => app.Settings.Transparent ? 0.95 : palette.IsLight ? 0.75 : 0.6;
-
-    static T Frozen<T>(T f) where T : Freezable
-    {
-        f.Freeze();
-        return f;
-    }
+    double HaloOpacity => BgOpacity < 0.3 ? 0.95 : palette.IsLight ? 0.75 : 0.6;
 
     /// <summary>Le menu du widget est ouvert : la garde du premier plan ne doit pas passer devant.</summary>
     public void PauseTopGuard(bool paused) => guard.Paused = paused;
@@ -264,6 +277,8 @@ public partial class MainWindow : Window
         bool g = Hot(ref hotGpu, r.GpuTemp, GpuHot) && s.ShowGpu;
         bool d = Hot(ref hotDisk, r.DiskTemp, DiskHot) && s.ShowDisk;
         cpu.SetHot(c); gpu.SetHot(g); disk.SetHot(d);
+        gCpu.SetHot(c); gGpu.SetHot(g); gDisk.SetHot(d);
+        ApplyGauges(r);
         double over = Math.Max(Over(c, r.CpuTemp, CpuHot), Math.Max(Over(g, r.GpuTemp, GpuHot), Over(d, r.DiskTemp, DiskHot)));
         fire.Set(s.FireAnimation && (c || g || d) ? 1 + Math.Clamp(over / 10, 0, 1) : 0);
 
@@ -275,6 +290,40 @@ public partial class MainWindow : Window
         Notice.Visibility = notice == null ? Visibility.Collapsed : Visibility.Visible;
 
         Pulse.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.25, TimeSpan.FromMilliseconds(700)));
+    }
+
+    /// <summary>Jauges rondes : l'anneau suit la température (20 °C → maximum du composant), la charge est écrite dessous.</summary>
+    void ApplyGauges(Readings r)
+    {
+        var s = app.Settings;
+        bool f = s.Fahrenheit;
+        string deg = f ? "°F" : "°";
+        string T(float? c) => c is float v ? Fmt.Temp(v, f).ToString("0", Fmt.Fr) : "—";
+        string? P(float? l) => l is float v ? $"{Math.Clamp(v, 0, 100):0} %" : null;
+        static double Scale(float? c, float max) => c is float v ? (v - 20) / (max - 20) : 0;
+
+        gCpu.Visible = s.ShowCpu;
+        var cb = palette.ForTemp(r.CpuTemp, CpuWarn, CpuHot);
+        gCpu.Set(T(r.CpuTemp), deg, cb, Scale(r.CpuTemp, 100), cb, P(r.CpuLoad));
+        gCpu.ToolTip = cpu.Root.ToolTip;
+
+        gGpu.Visible = s.ShowGpu && r.GpuName != null;
+        var gb = palette.ForTemp(r.GpuTemp, GpuWarn, GpuHot);
+        gGpu.Set(T(r.GpuTemp), deg, gb, Scale(r.GpuTemp, 95), gb, P(r.GpuLoad));
+        gGpu.ToolTip = r.GpuName;
+
+        gRam.Visible = s.ShowRam && r.RamLoad.HasValue;
+        gRam.Set(r.RamUsed is float u ? u.ToString(u >= 100 ? "0" : "0.0", Fmt.Fr) : "—", " Go", palette.Text,
+                 (r.RamLoad ?? 0) / 100.0, r.RamLoad >= 90 ? palette.Warn : palette.Accent, P(r.RamLoad));
+        gRam.ToolTip = ram.Root.ToolTip;
+
+        gDisk.Visible = s.ShowDisk && (r.DiskTemp.HasValue || r.DiskLoad.HasValue);
+        var db = palette.ForTemp(r.DiskTemp, DiskWarn, DiskHot);
+        gDisk.Set(T(r.DiskTemp), deg, db, Scale(r.DiskTemp, 70), db, P(r.DiskLoad));
+        gDisk.ToolTip = disk.Root.ToolTip;
+
+        gFan.Visible = s.ShowFan && r.FanRpm.HasValue;
+        gFan.Set(r.FanRpm is float rpm ? rpm.ToString("N0", Fmt.Fr) : "—", "", palette.Text, (r.FanRpm ?? 0) / 4000.0, palette.Accent, "tr/min");
     }
 
     static bool Hot(ref bool state, float? celsius, float limit)
