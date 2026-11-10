@@ -82,6 +82,44 @@ public partial class App : Application
         Settings.Save();
         updater = new Updater(this);
         updater.Start();
+
+        if (Settings.Mode is not (AppSettings.Lite or AppSettings.Full)) ShowWelcome();
+    }
+
+    // ------------------------------------------------------------------ mode simple ou complet
+
+    WelcomeWindow? welcome;
+
+    /// <summary>Fenêtre de bienvenue : choisir entre le mode simple et le mode complet.</summary>
+    public void ShowWelcome()
+    {
+        if (welcome != null) { welcome.Activate(); return; }
+        welcome = new WelcomeWindow(Settings.Mode ?? AppSettings.Lite);
+        welcome.Closed += (_, _) =>
+        {
+            SetMode(welcome!.Choice, announce: false);
+            welcome = null;
+            Notify(Settings.IsLite ? "Mode simple" : "Mode complet",
+                Settings.IsLite ? "Clic droit sur le widget pour le menu. Tu peux passer en mode complet à tout moment."
+                                : "Clic droit sur le widget pour toutes les options.");
+        };
+        welcome.Show();
+    }
+
+    public void SetMode(string mode, bool announce = true)
+    {
+        Settings.Mode = mode == AppSettings.Full ? AppSettings.Full : AppSettings.Lite;
+        if (Settings.IsLite)
+        {
+            // options cachées en mode simple : on les coupe pour que rien ne reste « coincé »
+            Settings.ClickThrough = false;
+            Settings.Locked = false;
+            Settings.TopmostForce = false;
+        }
+        Changed();
+        if (announce)
+            Notify(Settings.IsLite ? "Mode simple" : "Mode complet",
+                Settings.IsLite ? "Un menu court, l'essentiel seulement." : "Clic droit sur le widget pour toutes les options.");
     }
 
     /// <summary>Notification Windows (zone de notification) ; un clic dessus lance onClick.</summary>
@@ -197,7 +235,39 @@ public partial class App : Application
         menu.IsOpen = true;
     }
 
-    ContextMenu BuildMenu()
+    ContextMenu BuildMenu() => Settings.IsLite ? BuildLiteMenu() : BuildFullMenu();
+
+    /// <summary>Mode simple : l'essentiel, rien de plus.</summary>
+    ContextMenu BuildLiteMenu()
+    {
+        var s = Settings;
+        var m = new ContextMenu();
+        if (updater.Available is string next)
+        {
+            var up = Item($"Mettre à jour vers la version {next}", () => _ = updater.Install());
+            up.FontWeight = FontWeights.SemiBold;
+            up.Foreground = Theme.Accent;
+            m.Items.Add(up);
+        }
+        var plan = Item("Plan du PC…", ShowMap);
+        plan.FontWeight = FontWeights.SemiBold;
+        m.Items.Add(plan);
+        m.Items.Add(new Separator());
+        m.Items.Add(Choice("Affichage", s.Gauges ? 1 : 0, v => s.Gauges = v == 1, ("Jauges rondes", 1), ("Lignes et barres", 0)));
+        m.Items.Add(Choice("Taille", s.Scale, v => s.Scale = v, ("Petite", 0.85), ("Normale", 1.0), ("Grande", 1.2), ("Très grande", 1.45)));
+        m.Items.Add(Toggle("Toujours au premier plan", s.Topmost, v => { s.Topmost = v; s.TopmostForce = false; }));
+        m.Items.Add(Item("Replacer en haut à droite", () => widget.ResetPosition()));
+        m.Items.Add(new Separator());
+        var full = Item("Mode complet : toutes les options…", () => SetMode(AppSettings.Full));
+        full.Foreground = Theme.Accent;
+        m.Items.Add(full);
+        m.Items.Add(Item(widget.IsVisible ? "Masquer le widget" : "Afficher le widget", ToggleWidget));
+        m.Items.Add(Item("Quitter Temperator", Quit));
+        return m;
+    }
+
+    /// <summary>Mode complet : toutes les options.</summary>
+    ContextMenu BuildFullMenu()
     {
         var s = Settings;
         var m = new ContextMenu();
@@ -262,6 +332,7 @@ public partial class App : Application
         updates.Items.Add(Item("Rechercher maintenant", () => _ = updater.Check(manual: true)));
         updates.Items.Add(new MenuItem { Header = $"Version installée : {Version}", IsEnabled = false });
         m.Items.Add(updates);
+        m.Items.Add(Item("Passer en mode simple", () => SetMode(AppSettings.Lite)));
         m.Items.Add(Item("Licence et conditions d'utilisation", OpenLicense));
         m.Items.Add(Item(widget.IsVisible ? "Masquer le widget" : "Afficher le widget", ToggleWidget));
         m.Items.Add(Item("Quitter Temperator", Quit));
@@ -465,6 +536,15 @@ public partial class App : Application
                 widget.ApplyBackdrop(Backdrop.Of(Palette.Mix(a, b, 0.5)), animate: false);
                 await Task.Delay(300);
                 SavePng(widget, Path.Combine(dir, "widget-jauges-fond-40.png"), new LinearGradientBrush(a, b, 35));
+            }
+
+            if (Demo)   // fenêtre de bienvenue (choix du mode)
+            {
+                var w = new WelcomeWindow(AppSettings.Lite) { WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000, Topmost = false };
+                w.Show();
+                await Task.Delay(600);
+                SavePng(w, Path.Combine(dir, "bienvenue.png"));
+                w.Close();
             }
 
             if (Demo)   // infobulle avec la courbe des 5 dernières minutes

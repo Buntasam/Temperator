@@ -71,6 +71,17 @@ Les températures et l'utilisation de ton PC, toujours à l'écran : un petit wi
 > Ce que Windows ne permet pas de recouvrir : le menu Démarrer, la recherche, Alt+Tab, le centre de notifications
 > et les jeux en plein écran *exclusif*. Les jeux en mode « fenêtré sans bordure » fonctionnent.
 
+## Simple ou complet
+
+Au premier lancement, Temperator te demande comment tu veux l'utiliser :
+
+- **Simple** (recommandé) : le widget prêt à l'emploi, avec un menu court (affichage, taille, premier plan, masquer).
+- **Complet** : toutes les options décrites plus haut.
+
+Tu peux changer à tout moment avec un clic droit sur le widget : *Mode complet : toutes les options…* ou *Passer en mode simple*.
+
+<p align="center"><img src="docs/bienvenue.png" width="560" alt="Choix entre le mode simple et le mode complet"></p>
+
 ## Installation
 
 1. Télécharge **`Temperator-Setup-x.y.z.exe`** depuis la page [Releases](https://github.com/Buntasam/Temperator/releases/latest).

@@ -1,0 +1,125 @@
+<Window x:Class="Temperator.WelcomeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Bienvenue dans Temperator" Width="720" SizeToContent="Height" WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ResizeMode="NoResize" WindowStartupLocation="CenterScreen" Topmost="True"
+        FontFamily="Segoe UI" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display" Icon="Temperator.ico">
+  <Window.Resources>
+    <Style x:Key="Primary" TargetType="Button">
+      <Setter Property="Foreground" Value="#0B0D10"/>
+      <Setter Property="Background" Value="#4ED8C0"/>
+      <Setter Property="FontFamily" Value="{StaticResource TitleFont}"/>
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="B" Background="{TemplateBinding Background}" CornerRadius="10" Padding="28,10,28,11" RenderTransformOrigin="0.5,0.5">
+              <Border.Effect><DropShadowEffect Color="#4ED8C0" ShadowDepth="0" BlurRadius="18" Opacity="0.45"/></Border.Effect>
+              <ContentPresenter HorizontalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Opacity" Value="0.88"/></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="B" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="0.96" ScaleY="0.96"/></Setter.Value></Setter></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- une carte de choix : bordure turquoise quand elle est choisie -->
+    <Style x:Key="ChoiceCard" TargetType="Border">
+      <Setter Property="CornerRadius" Value="14"/>
+      <Setter Property="Padding" Value="20,18,20,18"/>
+      <Setter Property="BorderThickness" Value="2"/>
+      <Setter Property="BorderBrush" Value="#26F1F3F6"/>
+      <Setter Property="Background" Value="#0AFFFFFF"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style x:Key="CardTitle" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="{StaticResource TitleFont}"/>
+      <Setter Property="FontSize" Value="22"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="#F1F3F6"/>
+    </Style>
+    <Style x:Key="CardText" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="Foreground" Value="#8E97A4"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style x:Key="Point" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="Foreground" Value="#C9CFD8"/>
+      <Setter Property="Margin" Value="0,3,0,0"/>
+    </Style>
+  </Window.Resources>
+
+  <Grid Margin="24">
+    <Border CornerRadius="18" Background="{StaticResource CardBg}">
+      <Border.Effect><DropShadowEffect ShadowDepth="6" BlurRadius="30" Opacity="0.55"/></Border.Effect>
+    </Border>
+    <Border x:Name="Frame" CornerRadius="18" BorderBrush="#26F1F3F6" BorderThickness="1" Padding="32,28,32,26">
+      <StackPanel>
+        <!-- en-tête -->
+        <Grid Margin="0,0,0,22">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions>
+          <Viewbox Width="50" Height="50" VerticalAlignment="Center">
+            <Canvas Width="58" Height="58">
+              <Path Data="M 12.17,45.83 A 23.8,23.8 0 1 1 45.83,45.83" Stroke="#4ED8C0" StrokeThickness="6.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                <Path.Effect><DropShadowEffect Color="#4ED8C0" ShadowDepth="0" BlurRadius="18" Opacity="0.85"/></Path.Effect>
+              </Path>
+              <Ellipse Canvas.Left="22.6" Canvas.Top="22.6" Width="12.8" Height="12.8" Fill="#F1F3F6"/>
+            </Canvas>
+          </Viewbox>
+          <StackPanel Grid.Column="1" Margin="16,0,30,0" VerticalAlignment="Center">
+            <TextBlock Text="Bienvenue dans Temperator" FontFamily="{StaticResource TitleFont}" FontSize="26" FontWeight="SemiBold" Foreground="#F1F3F6"/>
+            <TextBlock Text="Comment veux-tu l'utiliser ? Tu pourras changer à tout moment avec un clic droit sur le widget."
+                       FontSize="13.5" Foreground="#8E97A4" TextWrapping="Wrap"/>
+          </StackPanel>
+          <TextBlock x:Name="CloseX" Grid.Column="1" Text="✕" FontSize="15" Foreground="#8E97A4" Cursor="Hand"
+                     HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,-4,0"/>
+        </Grid>
+
+        <!-- les deux choix -->
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="16"/><ColumnDefinition/></Grid.ColumnDefinitions>
+
+          <Border x:Name="CardLite" Style="{StaticResource ChoiceCard}">
+            <StackPanel>
+              <DockPanel>
+                <Border DockPanel.Dock="Right" CornerRadius="6" Padding="7,1,7,2" Background="#224ED8C0" BorderBrush="#554ED8C0" BorderThickness="1" VerticalAlignment="Center">
+                  <TextBlock Text="RECOMMANDÉ" FontFamily="{StaticResource TitleFont}" FontSize="10.5" FontWeight="Bold" Foreground="#4ED8C0"/>
+                </Border>
+                <TextBlock Style="{StaticResource CardTitle}" Text="Simple"/>
+              </DockPanel>
+              <TextBlock Style="{StaticResource CardText}" Margin="0,2,0,12" Text="Le widget prêt à l'emploi, sans réglages compliqués."/>
+              <ContentControl x:Name="LitePreview" Height="86" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+              <TextBlock Style="{StaticResource Point}" Text="✓  L'essentiel en un coup d'œil"/>
+              <TextBlock Style="{StaticResource Point}" Text="✓  Un menu court : affichage, taille, masquer"/>
+              <TextBlock Style="{StaticResource Point}" Text="✓  Mises à jour automatiques, rien à faire"/>
+            </StackPanel>
+          </Border>
+
+          <Border x:Name="CardFull" Grid.Column="2" Style="{StaticResource ChoiceCard}">
+            <StackPanel>
+              <TextBlock Style="{StaticResource CardTitle}" Text="Complet"/>
+              <TextBlock Style="{StaticResource CardText}" Margin="0,2,0,12" Text="Toutes les options, pour régler chaque détail."/>
+              <WrapPanel x:Name="FullChips" MinHeight="86" Margin="0,0,0,6"/>
+              <TextBlock Style="{StaticResource Point}" Text="✓  Fond translucide, transparent, opacités"/>
+              <TextBlock Style="{StaticResource Point}" Text="✓  Seuils, alertes, flammes, historique"/>
+              <TextBlock Style="{StaticResource Point}" Text="✓  Clics traversants, raccourci, premier plan"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <!-- bas -->
+        <DockPanel Margin="0,22,0,0" LastChildFill="False">
+          <Button x:Name="BtnContinue" DockPanel.Dock="Right" Style="{StaticResource Primary}" Content="Continuer" IsDefault="True"/>
+          <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="12" Foreground="#8E97A4" Opacity="0.85"
+                     Text="Double-clic sur une carte pour choisir directement."/>
+        </DockPanel>
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

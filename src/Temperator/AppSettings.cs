@@ -35,6 +35,11 @@ public sealed class AppSettings
     public bool Locked { get; set; }
     public bool Hidden { get; set; }
 
+    public const string Lite = "lite", Full = "full";
+    /// <summary>Mode simple (menu court) ou complet (toutes les options). null : pas encore choisi (fenêtre de bienvenue).</summary>
+    public string? Mode { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore] public bool IsLite => Mode != Full;
+
     /// <summary>Clics traversants : la souris passe à travers le widget (Ctrl enfoncé pour le saisir).</summary>
     public bool ClickThrough { get; set; }
     /// <summary>Raccourci global pour afficher/masquer ("" = aucun).</summary>
