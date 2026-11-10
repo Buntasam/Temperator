@@ -1,0 +1,21 @@
+Temperator utilise les composants suivants, distribués avec lui sous leur propre licence.
+
+LibreHardwareMonitorLib - Mozilla Public License 2.0
+  https://github.com/LibreHardwareMonitor/LibreHardwareMonitor
+  (code source disponible à cette adresse)
+
+RAMSPDToolkit, DiskInfoToolkit, BlackSharp.Core - dépendances de LibreHardwareMonitor
+  (licences et sources référencées dans le dépôt LibreHardwareMonitor ci-dessus)
+
+HidSharp - Apache License 2.0
+  https://www.zer7.com/software/hidsharp
+
+Mono.Posix.NETStandard - MIT License
+  https://github.com/mono/mono
+
+System.Management, System.IO.Ports, System.CodeDom - MIT License (.NET, Microsoft)
+  https://github.com/dotnet/runtime
+
+Installés à part si nécessaire (non inclus dans ce paquet) :
+  .NET Desktop Runtime 10 - MIT License, Microsoft - https://dotnet.microsoft.com
+  PawnIO - pilote signé de namazso - https://pawnio.eu
