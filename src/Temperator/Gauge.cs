@@ -107,8 +107,23 @@ sealed class GaugeTile
         face.Children.Add(ring);
         face.Children.Add(center);
         face.Children.Add(name);
+
+        // le feu de cette jauge seulement : derrière l'anneau, fondu en rond sur les bords (pas de « boîte »)
+        var fade = new RadialGradientBrush { Center = new Point(0.5, 0.62), GradientOrigin = new Point(0.5, 0.75), RadiusX = 0.5, RadiusY = 0.7 };
+        fade.GradientStops.Add(new GradientStop(Colors.White, 0));
+        fade.GradientStops.Add(new GradientStop(Colors.White, 0.4));
+        fade.GradientStops.Add(new GradientStop(Colors.Transparent, 1));
+        fade.Freeze();
+        var flames = new Canvas { Margin = new Thickness(-3, -6, -3, -10), OpacityMask = fade, ClipToBounds = true };   // jusqu'au bord bas du widget
+        fire = new Fire(flames, FireStyle.Gauge);
+        Root.Children.Add(flames);
         Root.Children.Add(face);
     }
+
+    readonly Fire fire;
+
+    /// <summary>0 = éteint, 1 = juste trop chaud, 2 = beaucoup trop chaud.</summary>
+    public void SetFire(double intensity) => fire.Set(intensity);
 
     public bool Visible
     {

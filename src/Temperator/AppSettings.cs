@@ -24,7 +24,7 @@ public sealed class AppSettings
     /// <summary>Opacité du fond seul (0 à 1), indépendante de l'opacité générale.</summary>
     public double BackgroundOpacity { get; set; } = 1.0;
     /// <summary>Affichage en jauges rondes au lieu des lignes et barres.</summary>
-    public bool Gauges { get; set; }
+    public bool Gauges { get; set; } = true;
     public bool FireAnimation { get; set; } = true;
     public double Scale { get; set; } = 1.0;
     public double Opacity { get; set; } = 1.0;

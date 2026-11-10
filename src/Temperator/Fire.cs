@@ -7,7 +7,16 @@ using System.Windows.Shapes;
 
 namespace Temperator;
 
-/// <summary>Flammes et braises qui montent du bas du widget quand un composant est trop chaud.</summary>
+/// <summary>Taille du feu : tout le bas du widget (affichage en lignes) ou une seule jauge.</summary>
+/// <param name="HeightRatio">hauteur des grandes flammes, en part de la hauteur de la zone</param>
+/// <param name="RoundGlow">lueur ronde (sous une jauge) plutôt qu'en bande</param>
+sealed record FireStyle(double HeightRatio, double MaxHeight, double BackSpacing, double FrontSpacing, int Embers, bool RoundGlow)
+{
+    public static readonly FireStyle Card = new(0.5, 58, 15, 11, 14, false);
+    public static readonly FireStyle Gauge = new(0.62, 46, 8, 6, 7, true);
+}
+
+/// <summary>Flammes et braises qui montent du bas d'une zone (le widget, ou une jauge) quand c'est trop chaud.</summary>
 sealed class Fire
 {
     // goutte de flamme dans un carré 1×1, pointe en haut
@@ -21,17 +30,24 @@ sealed class Fire
         new(Color.FromArgb(0x00, 0xFF, 0x46, 0x14), 0),
         new(Color.FromArgb(0x80, 0xFF, 0x46, 0x14), 1),
     }, 90));
+    static readonly Brush RoundGlowBrush = Freeze(new RadialGradientBrush(new GradientStopCollection
+    {
+        new(Color.FromArgb(0x90, 0xFF, 0x46, 0x14), 0),
+        new(Color.FromArgb(0x00, 0xFF, 0x46, 0x14), 1),
+    }));
     static readonly Brush Ember = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0xC8, 0x5A)));
 
     const int Fps = 30;   // assez fluide, et léger pour le processeur
     readonly Canvas layer;
+    readonly FireStyle style;
     readonly Random rnd = new();
     double builtWidth = -1, builtHeight = -1, target = -1;
     bool burning;
 
-    public Fire(Canvas layer)
+    public Fire(Canvas layer, FireStyle? style = null)
     {
         this.layer = layer;
+        this.style = style ?? FireStyle.Card;
         layer.IsHitTestVisible = false;
         layer.Opacity = 0;
         layer.Visibility = Visibility.Hidden;   // Hidden (pas Collapsed) : garde sa taille pour construire les flammes
@@ -65,15 +81,25 @@ sealed class Fire
         builtHeight = h;
         layer.Children.Clear();
 
-        var glow = new Rectangle { Width = w, Height = h * 0.8, Fill = Glow };
-        Canvas.SetBottom(glow, 0);
+        Shape glow;
+        if (style.RoundGlow)
+        {
+            glow = new Ellipse { Width = w * 1.1, Height = h, Fill = RoundGlowBrush };
+            Canvas.SetLeft(glow, -w * 0.05);
+            Canvas.SetBottom(glow, -h * 0.15);
+        }
+        else
+        {
+            glow = new Rectangle { Width = w, Height = h * 0.8, Fill = Glow };
+            Canvas.SetBottom(glow, 0);
+        }
         layer.Children.Add(glow);
         Loop(glow, UIElement.OpacityProperty, 0.55, 1, 0.9, 1.4);
 
-        double tall = Math.Min(h * 0.5, 58);   // la moitié basse : les valeurs restent lisibles
-        AddRow(w, tall, BackFlame, spacing: 15);
-        AddRow(w, tall * 0.62, FrontFlame, spacing: 11);
-        for (int i = 0; i < 14; i++) AddEmber(w, h);
+        double tall = Math.Min(h * style.HeightRatio, style.MaxHeight);   // le bas seulement : les valeurs restent lisibles
+        AddRow(w, tall, BackFlame, style.BackSpacing);
+        AddRow(w, tall * 0.62, FrontFlame, style.FrontSpacing);
+        for (int i = 0; i < style.Embers; i++) AddEmber(w, h);
     }
 
     void AddRow(double w, double height, Brush fill, double spacing)

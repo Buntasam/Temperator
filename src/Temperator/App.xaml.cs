@@ -255,7 +255,7 @@ public partial class App : Application
         try
         {
             Directory.CreateDirectory(dir);
-            Settings = new AppSettings { ShowFan = true };
+            Settings = new AppSettings { ShowFan = true, Gauges = false };
             Hub = new SensorHub(Dispatcher);
             widget = new MainWindow(this) { Left = -20000, Top = -20000 };
             var ready = new TaskCompletionSource();

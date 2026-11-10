@@ -185,7 +185,8 @@ public partial class MainWindow : Window
         }
         halo.Opacity = HaloOpacity;
         UpdateBackdropTimer();
-        if (!s.FireAnimation) fire.Set(0);
+        if (!s.FireAnimation || s.Gauges) fire.Set(0);
+        if (!s.FireAnimation || !s.Gauges) foreach (var t in new[] { gCpu, gGpu, gRam, gDisk, gFan }) t.SetFire(0);
     }
 
     double HaloOpacity => BgOpacity < 0.3 ? 0.95 : palette.IsLight ? 0.75 : 0.6;
@@ -279,8 +280,20 @@ public partial class MainWindow : Window
         cpu.SetHot(c); gpu.SetHot(g); disk.SetHot(d);
         gCpu.SetHot(c); gGpu.SetHot(g); gDisk.SetHot(d);
         ApplyGauges(r);
-        double over = Math.Max(Over(c, r.CpuTemp, CpuHot), Math.Max(Over(g, r.GpuTemp, GpuHot), Over(d, r.DiskTemp, DiskHot)));
-        fire.Set(s.FireAnimation && (c || g || d) ? 1 + Math.Clamp(over / 10, 0, 1) : 0);
+        // le feu : sur la jauge concernée en jauges rondes, sur tout le bas du widget en lignes
+        double Flame(double over) => s.FireAnimation ? 1 + Math.Clamp(over / 10, 0, 1) : 0;
+        if (s.Gauges)
+        {
+            fire.Set(0);
+            gCpu.SetFire(c ? Flame(Over(c, r.CpuTemp, CpuHot)) : 0);
+            gGpu.SetFire(g ? Flame(Over(g, r.GpuTemp, GpuHot)) : 0);
+            gDisk.SetFire(d ? Flame(Over(d, r.DiskTemp, DiskHot)) : 0);
+        }
+        else
+        {
+            double over = Math.Max(Over(c, r.CpuTemp, CpuHot), Math.Max(Over(g, r.GpuTemp, GpuHot), Over(d, r.DiskTemp, DiskHot)));
+            fire.Set(c || g || d ? Flame(over) : 0);
+        }
 
         string? notice = null;
         if (!app.IsAdmin && !app.Demo) notice = "Lance Temperator en administrateur pour lire les températures.";
