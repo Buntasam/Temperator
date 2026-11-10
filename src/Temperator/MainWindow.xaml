@@ -8,27 +8,30 @@
   <Grid x:Name="Root" Margin="12">
     <Grid.LayoutTransform><ScaleTransform x:Name="Zoom" ScaleX="1" ScaleY="1"/></Grid.LayoutTransform>
 
-    <!-- fond + ombre à part, pour garder un texte net -->
-    <Border CornerRadius="14" Background="{StaticResource CardBg}">
-      <Border.Effect><DropShadowEffect ShadowDepth="3" BlurRadius="16" Opacity="0.5"/></Border.Effect>
+    <!-- fond (opaque ou verre teinté) + ombre, à part pour garder un texte net -->
+    <Border x:Name="Bg" CornerRadius="14" Background="{StaticResource CardBg}">
+      <Border.Effect><DropShadowEffect x:Name="Shadow" ShadowDepth="3" BlurRadius="16" Opacity="0.5"/></Border.Effect>
     </Border>
 
-    <Border x:Name="Card" CornerRadius="14" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="14,10,14,10">
-      <StackPanel Width="218">
+    <!-- flammes quand c'est trop chaud (découpées aux coins arrondis) -->
+    <Canvas x:Name="FireLayer"/>
+
+    <Border x:Name="Card" CornerRadius="14" BorderThickness="1" Padding="14,10,14,10">
+      <StackPanel x:Name="Body" Width="218">
         <DockPanel Margin="0,0,0,6">
           <Viewbox Width="13" Height="13" VerticalAlignment="Center">
             <Canvas Width="58" Height="58">
-              <Path Data="M 12.17,45.83 A 23.8,23.8 0 1 1 45.83,45.83" Stroke="{StaticResource Accent}" StrokeThickness="7.5"
+              <Path x:Name="LogoArc" Data="M 12.17,45.83 A 23.8,23.8 0 1 1 45.83,45.83" StrokeThickness="7.5"
                     StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-              <Ellipse Canvas.Left="22" Canvas.Top="22" Width="14" Height="14" Fill="{StaticResource Text}"/>
+              <Ellipse x:Name="LogoDot" Canvas.Left="22" Canvas.Top="22" Width="14" Height="14"/>
             </Canvas>
           </Viewbox>
-          <Ellipse x:Name="Pulse" DockPanel.Dock="Right" Width="6" Height="6" Fill="{StaticResource Accent}" VerticalAlignment="Center" Opacity="0.25"/>
-          <TextBlock Text="TEMPERATOR" Margin="7,0,0,0" FontFamily="{StaticResource TitleFont}" FontSize="10.5" FontWeight="SemiBold"
-                     Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
+          <Ellipse x:Name="Pulse" DockPanel.Dock="Right" Width="6" Height="6" VerticalAlignment="Center" Opacity="0.25"/>
+          <TextBlock x:Name="Brand" Text="TEMPERATOR" Margin="7,0,0,0" FontFamily="{StaticResource TitleFont}" FontSize="10.5" FontWeight="SemiBold"
+                     VerticalAlignment="Center"/>
         </DockPanel>
         <StackPanel x:Name="Rows"/>
-        <TextBlock x:Name="Notice" Visibility="Collapsed" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Warn}" Margin="0,6,0,1"/>
+        <TextBlock x:Name="Notice" Visibility="Collapsed" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,1"/>
       </StackPanel>
     </Border>
   </Grid>

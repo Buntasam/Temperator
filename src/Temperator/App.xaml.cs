@@ -22,6 +22,8 @@ public partial class App : Application
     public bool IsAdmin { get; } = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
     /// <summary>Captures pour le README : valeurs d'exemple au lieu des capteurs.</summary>
     public bool Demo { get; private set; }
+    /// <summary>Mode capture : le widget reste hors de l'écran.</summary>
+    public bool Snapshotting { get; private set; }
 
     MainWindow widget = null!;
     MapWindow? map;
@@ -35,7 +37,7 @@ public partial class App : Application
         DispatcherUnhandledException += (_, a) => { Log(a.Exception); a.Handled = true; };
         AppDomain.CurrentDomain.UnhandledException += (_, a) => Log(a.ExceptionObject as Exception);
 
-        if (e.Args.Length >= 2 && e.Args[0] == "--snapshot") { Demo = Array.IndexOf(e.Args, "--demo") > 0; _ = Snapshot(e.Args[1]); return; }
+        if (e.Args.Length >= 2 && e.Args[0] == "--snapshot") { Snapshotting = true; Demo = Array.IndexOf(e.Args, "--demo") > 0; _ = Snapshot(e.Args[1]); return; }
 
         // une seule instance : la deuxième demande à la première de se montrer, puis s'arrête
         instance = new Mutex(true, @"Global\Temperator.Instance", out bool first);
@@ -60,7 +62,9 @@ public partial class App : Application
             map?.Refresh();
             tray?.Update(r, Settings);
         };
-        if (!Settings.Hidden) widget.Show();
+        // toujours visible au lancement (masqué = seulement pour la session en cours)
+        Settings.Hidden = false;
+        widget.Show();
         tray = new Tray(this);
     }
 
@@ -169,6 +173,10 @@ public partial class App : Application
         m.Items.Add(Toggle("Degrés Fahrenheit", s.Fahrenheit, v => s.Fahrenheit = v));
         m.Items.Add(new Separator());
 
+        m.Items.Add(Toggle("Mode translucide (s'adapte au fond)", s.Translucent, v => s.Translucent = v));
+        m.Items.Add(Toggle("Flammes quand c'est trop chaud", s.FireAnimation, v => s.FireAnimation = v));
+        m.Items.Add(new Separator());
+
         m.Items.Add(Toggle("Toujours au premier plan", s.Topmost, v => s.Topmost = v));
         m.Items.Add(Toggle("Verrouiller la position", s.Locked, v => s.Locked = v));
         m.Items.Add(Item("Replacer en haut à droite", () => widget.ResetPosition()));
@@ -257,7 +265,42 @@ public partial class App : Application
 
             SavePng(widget, Path.Combine(dir, "widget.png"));
             SavePng(map, Path.Combine(dir, "plan-du-pc.png"));
-            File.WriteAllText(Path.Combine(dir, "lectures.txt"),
+
+            if (Demo)
+            {
+                var normal = Last;
+                // trop chaud : flammes
+                widget.Apply(new Readings
+                {
+                    Ready = true, CpuName = normal.CpuName, CpuTemp = 94, CpuLoad = 100, GpuName = normal.GpuName, GpuTemp = 79, GpuLoad = 97,
+                    RamUsed = 13.9f, RamTotal = 15.7f, RamLoad = 88, DiskTemp = 47, DiskLoad = 35, FanRpm = 4200,
+                });
+                await Task.Delay(1600);
+                SavePng(widget, Path.Combine(dir, "widget-feu.png"));
+
+                // translucide, posé sur un fond sombre puis sur un fond clair
+                Settings.Translucent = true;
+                widget.ApplySettings();
+                widget.Apply(normal);
+                await Task.Delay(2500);   // les flammes s'éteignent
+                foreach (var (name, a, b) in new[]
+                {
+                    ("widget-translucide-sombre.png", Color.FromRgb(0x0F, 0x20, 0x27), Color.FromRgb(0x2C, 0x53, 0x64)),
+                    ("widget-translucide-clair.png", Color.FromRgb(0xF5, 0xF7, 0xFA), Color.FromRgb(0xB8, 0xC6, 0xDB)),
+                })
+                {
+                    widget.ApplyBackdrop(Backdrop.Of(Palette.Mix(a, b, 0.5)), animate: false);
+                    await Task.Delay(300);
+                    File.AppendAllText(Path.Combine(dir, "lectures.txt"), $"{name}: fond={Palette.Mix(a, b, 0.5)} luma={Backdrop.Of(Palette.Mix(a, b, 0.5)).Luma:0.00} palette claire={widget.LightPalette}\n");
+                    SavePng(widget, Path.Combine(dir, name), new LinearGradientBrush(a, b, 35));
+                }
+            }
+
+            // test du lecteur d'écran sur une zone réelle
+            var probe = Backdrop.Around(new System.Drawing.Rectangle(400, 300, 270, 160));
+            File.AppendAllText(Path.Combine(dir, "lectures.txt"), probe is { } pr
+                ? $"fond: couleur={pr.Average} luma={pr.Luma:0.00} agitation={pr.Busy:0.00}\n" : "fond: illisible\n");
+            File.AppendAllText(Path.Combine(dir, "lectures.txt"),
                 $"admin={IsAdmin}\ncpu={Last.CpuName} {Last.CpuTemp} °C {Last.CpuLoad} %\ngpu={Last.GpuName} {Last.GpuTemp} °C {Last.GpuLoad} %\n" +
                 $"ram={Last.RamUsed}/{Last.RamTotal} Go {Last.RamLoad} %\ndisque={Last.DiskName} {Last.DiskTemp} °C {Last.DiskLoad} %\nventilo={Last.FanRpm}\n");
         }
@@ -266,14 +309,18 @@ public partial class App : Application
         Shutdown();
     }
 
-    static void SavePng(Window w, string path)
+    static void SavePng(Window w, string path, Brush? background = null)
     {
         const double k = 2;
         double width = w.ActualWidth, height = w.ActualHeight;
-        var dv = new DrawingVisual();
-        using (var dc = dv.RenderOpen()) dc.DrawRectangle(new VisualBrush(w), null, new Rect(0, 0, width, height));
         var rtb = new RenderTargetBitmap((int)(width * k), (int)(height * k), 96 * k, 96 * k, PixelFormats.Pbgra32);
-        rtb.Render(dv);
+        if (background != null)
+        {
+            var dv = new DrawingVisual();
+            using (var dc = dv.RenderOpen()) dc.DrawRectangle(background, null, new Rect(0, 0, width, height));
+            rtb.Render(dv);
+        }
+        rtb.Render(w);   // rendu direct (un VisualBrush garderait une image périmée après un changement de couleurs)
         var enc = new PngBitmapEncoder();
         enc.Frames.Add(BitmapFrame.Create(rtb));
         using var fs = File.Create(path);

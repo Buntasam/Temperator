@@ -17,6 +17,9 @@ public sealed class AppSettings
     public bool ShowFan { get; set; }
 
     public bool Fahrenheit { get; set; }
+    /// <summary>Verre teinté qui adapte ses couleurs au fond de l'écran.</summary>
+    public bool Translucent { get; set; }
+    public bool FireAnimation { get; set; } = true;
     public double Scale { get; set; } = 1.0;
     public double Opacity { get; set; } = 1.0;
     public int IntervalMs { get; set; } = 1000;
