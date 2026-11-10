@@ -9,9 +9,13 @@ Les températures et l'utilisation de ton PC, toujours à l'écran : un petit wi
 - **Flammes quand c'est trop chaud** : le widget prend feu et la valeur en cause rougeoie (CPU ≥ 85 °C, GPU ≥ 87 °C, disque ≥ 60 °C).
 - **Mode translucide** : un verre teinté qui regarde le fond de l'écran autour de lui. Il passe en couleurs claires ou sombres
   pour rester lisible, prend la teinte du fond et s'opacifie si le fond est chargé. Ça s'adapte même pendant que tu le déplaces.
+- **Sans aucun fond (100 % transparent)** : seuls le texte et les barres flottent sur l'écran. Les couleurs s'adaptent
+  au fond de la même façon, avec un halo autour du texte pour qu'il reste lisible.
+- **Au-dessus de tout, quoi qu'il arrive** : si une fenêtre d'une autre application passe devant le widget, même une autre
+  fenêtre « toujours au premier plan », il repasse au-dessus. S'il est réduit, il revient.
 - **Glisser** pour le déplacer. La position est retenue.
 - **Double-clic** pour le *Plan du PC* : tout le matériel détecté et tous ses capteurs, en direct.
-- **Clic droit** pour les réglages : lignes affichées, taille, opacité, fréquence, °C/°F, translucide, flammes, premier plan, verrouillage…
+- **Clic droit** pour les réglages : lignes affichées, taille, opacité, fréquence, °C/°F, fond (opaque, translucide ou aucun), flammes, premier plan, verrouillage…
 - **Icône près de l'horloge** : un clic masque ou réaffiche le widget, et le clic droit ouvre le même menu.
 - Démarre avec Windows, **sans demande d'autorisation à chaque fois**.
 
@@ -21,6 +25,14 @@ Les températures et l'utilisation de ton PC, toujours à l'écran : un petit wi
   <img src="docs/widget-translucide-clair.png" width="260" alt="Mode translucide sur fond clair">
 </p>
 <p align="center"><sub>Trop chaud · translucide sur fond sombre · translucide sur fond clair</sub></p>
+<p align="center">
+  <img src="docs/widget-transparent-sombre.png" width="260" alt="Sans fond, sur fond sombre">
+  <img src="docs/widget-transparent-clair.png" width="260" alt="Sans fond, sur fond clair">
+</p>
+<p align="center"><sub>Sans aucun fond : sur fond sombre · sur fond clair</sub></p>
+
+> Ce que Windows ne permet pas de recouvrir : le menu Démarrer, la recherche, Alt+Tab, le centre de notifications
+> et les jeux en plein écran *exclusif*. Les jeux en mode « fenêtré sans bordure » fonctionnent.
 
 ## Installation
 

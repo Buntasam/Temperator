@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     readonly Fire fire;
     readonly DispatcherTimer backdropTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
     readonly DropShadowEffect halo = new() { ShadowDepth = 0, BlurRadius = 6, Opacity = 0.6 };
+    readonly TopGuard guard;
     bool hotCpu, hotGpu, hotDisk;
     int updates;
 
@@ -48,6 +49,7 @@ public partial class MainWindow : Window
         Brand.Foreground = palette.Muted;
         Notice.Foreground = palette.Warn;
         fire = new Fire(FireLayer);
+        guard = new TopGuard(this);
         Bg.SizeChanged += (_, e) => FireLayer.Clip = new RectangleGeometry(new Rect(e.NewSize), 14, 14);
         backdropTimer.Tick += (_, _) => SampleBackdrop(animate: true);
 
@@ -121,53 +123,84 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ apparence
 
+    // fond « invisible » : presque transparent (4/255) pour que le widget reste saisissable partout
+    static readonly Brush NoBackground = Frozen(new SolidColorBrush(Color.FromArgb(4, 0x80, 0x80, 0x80)));
+
+    /// <summary>Translucide ou sans fond : les couleurs suivent le fond de l'écran.</summary>
+    bool Adaptive => app.Settings.Translucent || app.Settings.Transparent;
+
     public void ApplySettings()
     {
         var s = app.Settings;
         Topmost = s.Topmost;
+        guard.Enable(s.Topmost && s.TopmostForce && !app.Snapshotting);
         Root.BeginAnimation(OpacityProperty, null);
         Root.Opacity = s.Opacity;
         Zoom.ScaleX = Zoom.ScaleY = s.Scale;
 
-        if (s.Translucent)
+        if (s.Transparent)
+        {
+            Bg.Background = NoBackground;
+            Card.BorderBrush = Brushes.Transparent;
+            Shadow.Opacity = 0;
+            halo.BlurRadius = 9;   // plus de fond : le halo seul porte la lisibilité
+            Body.Effect = halo;
+            SampleBackdrop(animate: false);
+        }
+        else if (s.Translucent)
         {
             Bg.Background = palette.Tint;
+            Card.BorderBrush = palette.Line;
             Shadow.Opacity = 0.16;
+            halo.BlurRadius = 6;
             Body.Effect = halo;   // halo discret autour du texte : lisible sur n'importe quel fond
             SampleBackdrop(animate: false);
         }
         else
         {
             Bg.Background = (Brush)FindResource("CardBg");
+            Card.BorderBrush = palette.Line;
             Shadow.Opacity = 0.5;
             Body.Effect = null;
             palette.Use(light: false, animate: false);
         }
+        halo.Opacity = HaloOpacity;
         UpdateBackdropTimer();
         if (!s.FireAnimation) fire.Set(0);
     }
 
+    double HaloOpacity => app.Settings.Transparent ? 0.95 : palette.IsLight ? 0.75 : 0.6;
+
+    static T Frozen<T>(T f) where T : Freezable
+    {
+        f.Freeze();
+        return f;
+    }
+
+    /// <summary>Le menu du widget est ouvert : la garde du premier plan ne doit pas passer devant.</summary>
+    public void PauseTopGuard(bool paused) => guard.Paused = paused;
+
     void UpdateBackdropTimer()
     {
-        if (app.Settings.Translucent && IsVisible) backdropTimer.Start();
+        if (Adaptive && IsVisible) backdropTimer.Start();
         else backdropTimer.Stop();
     }
 
     void SampleBackdrop(bool animate)
     {
-        if (!app.Settings.Translucent || app.Snapshotting) return;
+        if (!Adaptive || app.Snapshotting) return;
         var hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return;
         if (Backdrop.Around(hwnd) is { } sample) ApplyBackdrop(sample, animate);
         else if (!animate) ApplyBackdrop(Backdrop.Of(Color.FromRgb(0x20, 0x24, 0x2C)), false);   // rien à lire : verre sombre
     }
 
-    /// <summary>
-    /// Adapte le mode translucide au fond : palette claire ou sombre selon la luminosité (avec une marge pour ne pas
-    /// clignoter), verre teinté de la couleur du fond, et plus opaque si le fond est chargé.
-    /// </summary>
     internal bool LightPalette => palette.IsLight;
 
+    /// <summary>
+    /// Adapte le widget au fond : palette claire ou sombre selon la luminosité (avec une marge pour ne pas
+    /// clignoter), verre teinté de la couleur du fond, et plus opaque si le fond est chargé.
+    /// </summary>
     internal void ApplyBackdrop(Backdrop.Sample bg, bool animate)
     {
         bool light = palette.IsLight ? bg.Luma > 0.42 : bg.Luma > 0.6;
@@ -177,7 +210,7 @@ public partial class MainWindow : Window
             var haloColor = palette.Halo;
             if (animate) halo.BeginAnimation(DropShadowEffect.ColorProperty, new ColorAnimation(haloColor, TimeSpan.FromMilliseconds(450)));
             else { halo.BeginAnimation(DropShadowEffect.ColorProperty, null); halo.Color = haloColor; }
-            halo.Opacity = light ? 0.75 : 0.6;
+            halo.Opacity = HaloOpacity;
         }
         var glass = light ? Color.FromRgb(0xFA, 0xFB, 0xFD) : Color.FromRgb(0x0A, 0x0C, 0x10);
         var tint = Palette.Mix(bg.Average, glass, light ? 0.6 : 0.62);

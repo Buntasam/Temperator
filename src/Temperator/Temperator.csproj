@@ -15,7 +15,7 @@
     <RollForward>LatestMajor</RollForward>
     <SatelliteResourceLanguages>fr</SatelliteResourceLanguages>
 
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Product>Temperator</Product>
     <Company>Temperator</Company>
     <Description>Températures et utilisation du PC, toujours à l'écran.</Description>

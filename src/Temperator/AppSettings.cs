@@ -19,11 +19,15 @@ public sealed class AppSettings
     public bool Fahrenheit { get; set; }
     /// <summary>Verre teinté qui adapte ses couleurs au fond de l'écran.</summary>
     public bool Translucent { get; set; }
+    /// <summary>Aucun fond : seuls le texte et les barres flottent sur l'écran (couleurs adaptées au fond).</summary>
+    public bool Transparent { get; set; }
     public bool FireAnimation { get; set; } = true;
     public double Scale { get; set; } = 1.0;
     public double Opacity { get; set; } = 1.0;
     public int IntervalMs { get; set; } = 1000;
     public bool Topmost { get; set; } = true;
+    /// <summary>Repasse au-dessus dès qu'une autre fenêtre le recouvre (avec Topmost).</summary>
+    public bool TopmostForce { get; set; }
     public bool Locked { get; set; }
     public bool Hidden { get; set; }
 

@@ -140,6 +140,8 @@ public partial class App : Application
     public void ShowMenu(UIElement? target)
     {
         var menu = BuildMenu();
+        menu.Opened += (_, _) => widget.PauseTopGuard(true);
+        menu.Closed += (_, _) => widget.PauseTopGuard(false);
         menu.Placement = PlacementMode.MousePoint;
         if (target != null) menu.PlacementTarget = target;
         else Native.SetForegroundWindow(new WindowInteropHelper(widget).Handle);   // pour que le menu se ferme en cliquant ailleurs
@@ -173,11 +175,13 @@ public partial class App : Application
         m.Items.Add(Toggle("Degrés Fahrenheit", s.Fahrenheit, v => s.Fahrenheit = v));
         m.Items.Add(new Separator());
 
-        m.Items.Add(Toggle("Mode translucide (s'adapte au fond)", s.Translucent, v => s.Translucent = v));
+        m.Items.Add(Choice("Fond", s.Transparent ? 2 : s.Translucent ? 1 : 0, v => { s.Translucent = v == 1; s.Transparent = v == 2; },
+            ("Opaque", 0), ("Translucide (s'adapte au fond)", 1), ("Aucun fond, 100 % transparent", 2)));
         m.Items.Add(Toggle("Flammes quand c'est trop chaud", s.FireAnimation, v => s.FireAnimation = v));
         m.Items.Add(new Separator());
 
-        m.Items.Add(Toggle("Toujours au premier plan", s.Topmost, v => s.Topmost = v));
+        m.Items.Add(Choice("Premier plan", !s.Topmost ? 0 : s.TopmostForce ? 2 : 1, v => { s.Topmost = v > 0; s.TopmostForce = v == 2; },
+            ("Normal", 0), ("Toujours au premier plan", 1), ("Au-dessus de tout, quoi qu'il arrive", 2)));
         m.Items.Add(Toggle("Verrouiller la position", s.Locked, v => s.Locked = v));
         m.Items.Add(Item("Replacer en haut à droite", () => widget.ResetPosition()));
         m.Items.Add(new Separator());
@@ -287,8 +291,15 @@ public partial class App : Application
                 {
                     ("widget-translucide-sombre.png", Color.FromRgb(0x0F, 0x20, 0x27), Color.FromRgb(0x2C, 0x53, 0x64)),
                     ("widget-translucide-clair.png", Color.FromRgb(0xF5, 0xF7, 0xFA), Color.FromRgb(0xB8, 0xC6, 0xDB)),
+                    ("widget-transparent-sombre.png", Color.FromRgb(0x0F, 0x20, 0x27), Color.FromRgb(0x2C, 0x53, 0x64)),
+                    ("widget-transparent-clair.png", Color.FromRgb(0xF5, 0xF7, 0xFA), Color.FromRgb(0xB8, 0xC6, 0xDB)),
                 })
                 {
+                    if (name.Contains("transparent") && !Settings.Transparent)
+                    {
+                        Settings.Transparent = true;   // puis sans aucun fond
+                        widget.ApplySettings();
+                    }
                     widget.ApplyBackdrop(Backdrop.Of(Palette.Mix(a, b, 0.5)), animate: false);
                     await Task.Delay(300);
                     File.AppendAllText(Path.Combine(dir, "lectures.txt"), $"{name}: fond={Palette.Mix(a, b, 0.5)} luma={Backdrop.Of(Palette.Mix(a, b, 0.5)).Luma:0.00} palette claire={widget.LightPalette}\n");
