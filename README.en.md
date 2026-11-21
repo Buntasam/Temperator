@@ -42,6 +42,9 @@ Your PC's temperatures and usage, always on screen: a small, discreet widget at 
 - **Windows alert** when a component stays too hot for more than 30 seconds, even with the widget hidden.
 - **History**: hover a gauge for its last 5 minutes, and in the *PC map* the last 10 minutes, last hour or last 24 hours
   (kept across restarts), with **CSV export** for Excel.
+- **Fans**: the small arrow at the top right opens a panel with each fan on its own and a slider to set its speed
+  (or **AUTO**: the BIOS decides). Never below 20 %, full speed if a component gets too hot, and handed back to the BIOS
+  on exit. Control depends on the motherboard (rarely possible on laptops).
 - **"Game" profile**: when a game or video goes fullscreen, the widget switches its settings by itself
   (by default CPU, GPU and FPS, smaller, light background, always on top), then goes back to its "Desktop" profile.
   You choose what it shows, its layout, size and background. It can also hide, or change nothing.
@@ -56,6 +59,7 @@ Your PC's temperatures and usage, always on screen: a small, discreet widget at 
 Drag the widget to move it, **double-click** for the *PC map*, **right-click** for the menu.
 The icon near the clock hides or shows it.
 
+<p align="center"><img src="docs/en/widget-ventilateurs.png" width="460" alt="The fan panel, open below the gauges"></p>
 <p align="center">
   <img src="docs/en/widget-jauges-feu.png" width="350" alt="Too hot: only the CPU gauge burns">
   <img src="docs/en/infobulle-historique.png" width="260" alt="Tooltip with the history">

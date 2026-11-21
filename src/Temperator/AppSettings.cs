@@ -35,6 +35,15 @@ public sealed class AppSettings
     public string? DiskId { get; set; }
     public string? NetId { get; set; }
 
+    // ------------------------------------------------------------------ ventilateurs
+
+    /// <summary>Panneau des ventilateurs ouvert sous le widget (petite flèche en haut à droite).</summary>
+    public bool FanPanel { get; set; }
+    /// <summary>Vitesse imposée à chaque ventilateur (identifiant du réglage → %) ; absent : automatique (BIOS, pilote).</summary>
+    public Dictionary<string, double> FanSpeeds { get; set; } = new();
+    /// <summary>Vitesse minimale qu'on peut imposer, en % : un ventilateur réglé à la main ne s'arrête jamais.</summary>
+    public const double MinFanSpeed = 20;
+
     // ------------------------------------------------------------------ apparence
 
     public const string Gauges = "gauges", Rows = "rows", Bar = "bar";
@@ -180,6 +189,8 @@ public sealed class AppSettings
         Order = (Order ?? new()).Where(MetricKeys.All.Contains).Distinct().ToList();
         Order.AddRange(MetricKeys.All.Where(k => !Order.Contains(k)));
         GameShow = (GameShow ?? new()).Where(MetricKeys.All.Contains).Distinct().ToList();
+        FanSpeeds = (FanSpeeds ?? new()).Where(p => !string.IsNullOrWhiteSpace(p.Key) && double.IsFinite(p.Value))
+                                        .ToDictionary(p => p.Key, p => Math.Clamp(Math.Round(p.Value), MinFanSpeed, 100));
         return this;
     }
 

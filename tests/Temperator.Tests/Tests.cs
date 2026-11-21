@@ -127,6 +127,34 @@ public class SettingsTests
         back.SetShows(MetricKeys.Cpu, false);
         Assert.False(back.Shows(MetricKeys.Cpu));
     }
+
+    [Fact]
+    public void Fan_speeds_stay_between_the_minimum_and_100()
+    {
+        var s = AppSettings.Parse("""{ "FanSpeeds": { "/lpc/nct6798d/control/0": 5, "/lpc/nct6798d/control/1": 64.4, "/gpu/0/control/0": 250, " ": 50 } }""");
+        Assert.Equal(AppSettings.MinFanSpeed, s.FanSpeeds["/lpc/nct6798d/control/0"]);   // jamais arrêté
+        Assert.Equal(64, s.FanSpeeds["/lpc/nct6798d/control/1"]);
+        Assert.Equal(100, s.FanSpeeds["/gpu/0/control/0"]);
+        Assert.Equal(3, s.FanSpeeds.Count);
+        Assert.False(s.FanPanel);
+        Assert.Equal(s.FanSpeeds, AppSettings.Parse(s.ToJson()).FanSpeeds);
+    }
+}
+
+public class FanTests
+{
+    [Theory]
+    [InlineData("Fan #2", "VENTILO 2", "FAN 2")]
+    [InlineData("Fan Control #3", "VENTILO 3", "FAN 3")]
+    [InlineData("GPU Fan 1", "VENTILO GPU 1", "GPU FAN 1")]
+    [InlineData("Pump", "POMPE", "PUMP")]
+    public void Short_names(string sensor, string fr, string en)
+    {
+        L.Init(L.French);
+        Assert.Equal(fr, FanPanel.Pretty(sensor));
+        L.Init(L.English);
+        Assert.Equal(en, FanPanel.Pretty(sensor));
+    }
 }
 
 public class HeatTests

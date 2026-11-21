@@ -55,7 +55,14 @@ public partial class App
                     RamUsed = 11.4f, RamTotal = 15.7f, RamLoad = 72, DiskTemp = 41, DiskLoad = 6, DiskName = "SSD", FanRpm = 1850,
                     TotalPower = 59.5f, NetDown = 12.3e6f, NetUp = 1.2e6f, NetName = "Wi-Fi", BatteryLevel = 78, BatteryRate = -9,
                     Gpus = real.Gpus, Disks = real.Disks, Nets = real.Nets,
+                    Fans = new()
+                    {
+                        new FanInfo("demo/fan/0", "Fan #1", "Nuvoton NCT6798D", 1180, 42, "demo/fan/0", false),
+                        new FanInfo("demo/fan/1", "Fan #2", "Nuvoton NCT6798D", 860, 35, "demo/fan/1", true),
+                        new FanInfo("demo/gpu/0", "GPU Fan 1", real.GpuName ?? "GPU", 1450, 38, "demo/gpu/0", false),
+                    },
                 };
+                Settings.FanSpeeds["demo/fan/1"] = 35;
                 widget.Apply(Last);   // les capteurs continuent (pour le plan du PC), mais le widget garde les valeurs d'exemple
             }
 
@@ -110,6 +117,15 @@ public partial class App
                 widget.Apply(Hot(normal, fan: false));
                 await Task.Delay(1600);
                 SavePng(widget, Path.Combine(dir, "widget-jauges-feu.png"));
+
+                // panneau des ventilateurs ouvert (petite flèche en haut à droite)
+                Settings.FanPanel = true;
+                widget.ApplySettings();
+                widget.Apply(normal);
+                await Task.Delay(900);
+                SavePng(widget, Path.Combine(dir, "widget-ventilateurs.png"));
+                Settings.FanPanel = false;
+                widget.ApplySettings();
 
                 widget.Apply(normal);
                 await Task.Delay(2500);

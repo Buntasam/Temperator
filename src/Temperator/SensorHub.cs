@@ -30,7 +30,19 @@ public sealed class Readings
     public bool BatteryCharging;
     /// <summary>Le matériel au choix (identifiant, nom) : cartes graphiques, disques, cartes réseau.</summary>
     public List<(string Id, string Name)> Gpus = new(), Disks = new(), Nets = new();
+    /// <summary>Chaque ventilateur à part (carte mère, carte graphique, refroidissement).</summary>
+    public List<FanInfo> Fans = new();
+    /// <summary>Sécurité : un composant est trop chaud, les ventilateurs réglés à la main tournent à fond.</summary>
+    public bool FanBoost;
 }
+
+/// <summary>Un ventilateur : sa vitesse et, s'il se règle depuis Windows, son réglage.</summary>
+/// <param name="Key">identifiant stable (celui du réglage, sinon celui du capteur de vitesse)</param>
+/// <param name="Device">le matériel qui le porte (puce de la carte mère, carte graphique…)</param>
+/// <param name="Duty">vitesse demandée en ce moment, en %</param>
+/// <param name="ControlId">identifiant du réglage ; null : vitesse seulement lue</param>
+/// <param name="Manual">vitesse imposée par un logiciel (et non par le BIOS ou le pilote)</param>
+public sealed record FanInfo(string Key, string Name, string Device, float? Rpm, float? Duty, string? ControlId, bool Manual);
 
 /// <summary>Lit les capteurs (LibreHardwareMonitor) sur un thread à part et publie les valeurs sur le thread de l'interface.</summary>
 public sealed class SensorHub : IDisposable
@@ -48,7 +60,7 @@ public sealed class SensorHub : IDisposable
     };
     readonly Dispatcher dispatcher;
     readonly Thread thread;
-    readonly AutoResetEvent wake = new(false);
+    readonly AutoResetEvent wake = new(false), fanWake = new(false);
     volatile bool stopping;
     bool loggedError;
 
@@ -58,6 +70,8 @@ public sealed class SensorHub : IDisposable
     /// <summary>Matériel choisi dans les réglages (null : automatique).</summary>
     public volatile string? GpuId, DiskId, NetId;
     public bool Ready { get; private set; }
+    /// <summary>Seuils « trop chaud » (°C) : au-delà, les ventilateurs réglés à la main repassent à fond.</summary>
+    public volatile float CpuHot = 85, GpuHot = 87;
     public event Action<Readings>? Updated;
 
     public SensorHub(Dispatcher dispatcher)
@@ -91,6 +105,7 @@ public sealed class SensorHub : IDisposable
                         var hw = computer.Hardware.ToList();
                         foreach (var h in hw) Update(h);
                         r = Read(hw, GpuId, DiskId, NetId);
+                        Fans(hw, r);
                     }
                 }
                 catch (Exception ex)
@@ -102,12 +117,31 @@ public sealed class SensorHub : IDisposable
             BatteryFallback(r);
             if (stopping) break;
             dispatcher.InvokeAsync(() => Updated?.Invoke(r));
-            wake.WaitOne(Math.Clamp(IntervalMs, 250, 10000));
+            Wait(Math.Clamp(IntervalMs, 250, 10000));
         }
 
         lock (Sync)
         {
+            RestoreFans();
             try { computer.Close(); } catch { }
+        }
+    }
+
+    /// <summary>Attend la prochaine mesure ; un réglage de ventilateur demandé entre-temps s'applique tout de suite.</summary>
+    void Wait(int ms)
+    {
+        long until = Environment.TickCount64 + ms;
+        var handles = new WaitHandle[] { wake, fanWake };
+        while (!stopping)
+        {
+            long left = until - Environment.TickCount64;
+            if (left <= 0) return;
+            if (WaitHandle.WaitAny(handles, (int)left) != 1) return;
+            lock (Sync)
+            {
+                try { if (Ready) ApplyFans(all: false); }
+                catch (Exception ex) { App.Log(ex); }
+            }
         }
     }
 
@@ -271,6 +305,163 @@ public sealed class SensorHub : IDisposable
     {
         var values = AllSensors(h).Where(s => s.SensorType == type && Valid(s)).Select(s => s.Value!.Value).ToList();
         return values.Count > 0 ? values.Max() : null;
+    }
+
+    // ------------------------------------------------------------------ ventilateurs : chacun à part, et leur réglage
+
+    readonly object fanLock = new();
+    /// <summary>Vitesse voulue par réglage (identifiant → %) ; absent : automatique. Sous lock(fanLock).</summary>
+    readonly Dictionary<string, float> fanTargets = new();
+    /// <summary>Réglages à (ré)appliquer. Sous lock(fanLock).</summary>
+    readonly HashSet<string> fanPending = new();
+    /// <summary>Réglages imposés par Temperator (rendus au BIOS / au pilote en quittant). Thread capteurs.</summary>
+    readonly HashSet<string> fanTouched = new();
+    /// <summary>Ventilateurs déjà vus tourner (un ventilateur qui s'arrête reste affiché). Thread capteurs.</summary>
+    readonly HashSet<string> fanSeen = new();
+    bool boost, loggedFanError;
+
+    /// <summary>Impose une vitesse (en %) à un ventilateur, ou le rend au BIOS / au pilote (null).</summary>
+    public void SetFan(string controlId, float? percent)
+    {
+        lock (fanLock)
+        {
+            if (percent is float p) fanTargets[controlId] = Math.Clamp(p, (float)AppSettings.MinFanSpeed, 100);
+            else fanTargets.Remove(controlId);
+            fanPending.Add(controlId);
+        }
+        fanWake.Set();
+    }
+
+    /// <summary>Réglages en attente, sécurité, puis lecture de chaque ventilateur (sous lock(Sync)).</summary>
+    void Fans(List<IHardware> hw, Readings r)
+    {
+        try
+        {
+            ApplyFans(all: false);
+            Safety(r);
+            r.Fans = ReadFans(hw);
+        }
+        catch (Exception ex)
+        {
+            if (!loggedFanError) { App.Log(ex); loggedFanError = true; }
+        }
+    }
+
+    /// <summary>Les réglages des ventilateurs, par identifiant (sous lock(Sync)).</summary>
+    Dictionary<string, ISensor> Controls() =>
+        computer.Hardware.SelectMany(AllSensors)
+            .Where(s => s.SensorType == SensorType.Control && s.Control != null)
+            .GroupBy(s => s.Identifier.ToString())
+            .ToDictionary(g => g.Key, g => g.First());
+
+    /// <summary>Applique les vitesses demandées (sous lock(Sync)) : seulement les nouvelles, ou toutes.</summary>
+    void ApplyFans(bool all)
+    {
+        List<(string Id, float? Target)> work;
+        lock (fanLock)
+        {
+            var ids = all ? fanTargets.Keys.Concat(fanPending).Distinct().ToList() : fanPending.ToList();
+            fanPending.Clear();
+            work = ids.Select(id => (id, fanTargets.TryGetValue(id, out var p) ? p : (float?)null)).ToList();
+        }
+        if (work.Count == 0) return;
+
+        var controls = Controls();
+        foreach (var (id, target) in work)
+        {
+            if (!controls.TryGetValue(id, out var sensor) || sensor.Control is not { } control) continue;
+            try
+            {
+                if (target is float p)
+                {
+                    float min = Math.Max(control.MinSoftwareValue, (float)AppSettings.MinFanSpeed);
+                    float max = control.MaxSoftwareValue > min ? control.MaxSoftwareValue : 100;
+                    control.SetSoftware(boost ? max : Math.Clamp(p, min, max));
+                    fanTouched.Add(id);
+                }
+                else
+                {
+                    control.SetDefault();
+                    fanTouched.Remove(id);
+                }
+            }
+            catch (Exception ex) { App.Log(ex); }
+        }
+    }
+
+    /// <summary>
+    /// Sécurité : si le CPU ou la carte graphique dépasse son seuil « trop chaud », les ventilateurs réglés à la main
+    /// tournent à fond, jusqu'à ce que tout soit redescendu de 5 °C.
+    /// </summary>
+    void Safety(Readings r)
+    {
+        float cpu = CpuHot, gpu = GpuHot;
+        bool hot = r.CpuTemp >= cpu || r.GpuTemp >= gpu;
+        bool warm = r.CpuTemp >= cpu - 5 || r.GpuTemp >= gpu - 5;
+        bool want = boost ? warm : hot;
+        if (want != boost)
+        {
+            boost = want;
+            ApplyFans(all: true);
+        }
+        lock (fanLock) r.FanBoost = boost && fanTargets.Count > 0;
+    }
+
+    /// <summary>En quittant : les ventilateurs réglés par Temperator reviennent au BIOS / au pilote.</summary>
+    void RestoreFans()
+    {
+        if (fanTouched.Count == 0) return;
+        try
+        {
+            var controls = Controls();
+            foreach (var id in fanTouched)
+                if (controls.TryGetValue(id, out var s))
+                    try { s.Control?.SetDefault(); } catch { }
+        }
+        catch { }
+        fanTouched.Clear();
+    }
+
+    /// <summary>
+    /// Chaque ventilateur, avec son réglage s'il en a un (même matériel, même numéro). Les prises de la carte mère
+    /// sans ventilateur (0 tr/min, jamais vu tourner) sont ignorées ; ceux des cartes graphiques restent (arrêt au repos).
+    /// </summary>
+    List<FanInfo> ReadFans(List<IHardware> hw)
+    {
+        var list = new List<FanInfo>();
+        foreach (var h in hw.SelectMany(Flatten))
+        {
+            var fans = h.Sensors.Where(s => s.SensorType == SensorType.Fan).ToList();
+            var controls = h.Sensors.Where(s => s.SensorType == SensorType.Control).ToList();
+            if (fans.Count + controls.Count == 0) continue;
+            bool gpu = h.HardwareType is HardwareType.GpuNvidia or HardwareType.GpuAmd or HardwareType.GpuIntel;
+
+            void Add(ISensor? fan, ISensor? control)
+            {
+                bool settable = control?.Control != null;
+                var main = settable ? control! : fan ?? control!;
+                string key = main.Identifier.ToString();
+                float? rpm = fan != null && Valid(fan) ? fan.Value : null;
+                float? duty = control != null && Valid(control) ? control.Value : null;
+                bool manual = control?.Control?.ControlMode == ControlMode.Software;
+                bool wanted;
+                lock (fanLock) wanted = fanTargets.ContainsKey(key);
+                if (rpm > 0) fanSeen.Add(key);
+                if (!(rpm > 0 || gpu || manual || wanted || fanSeen.Contains(key))) return;
+                list.Add(new FanInfo(key, (fan ?? control!).Name, h.Name, rpm, duty, settable ? key : null, manual));
+            }
+
+            foreach (var f in fans) Add(f, controls.FirstOrDefault(c => c.Index == f.Index));
+            foreach (var c in controls.Where(c => c.Control != null && !fans.Any(f => f.Index == c.Index))) Add(null, c);
+        }
+        return list;
+    }
+
+    static IEnumerable<IHardware> Flatten(IHardware h)
+    {
+        yield return h;
+        foreach (var sub in h.SubHardware)
+            foreach (var x in Flatten(sub)) yield return x;
     }
 
     // ------------------------------------------------------------------ mémoire : Windows, si LibreHardwareMonitor n'a rien donné

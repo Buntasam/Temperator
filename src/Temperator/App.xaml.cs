@@ -77,6 +77,8 @@ public partial class App : Application
 
         Hub = new SensorHub(Dispatcher) { IntervalMs = Settings.IntervalMs };
         PassHardwareChoice();
+        // vitesses imposées aux ventilateurs : réappliquées dès que les capteurs sont prêts
+        if (!Demo) foreach (var (id, percent) in Settings.FanSpeeds) Hub.SetFan(id, (float)percent);
         widget = new MainWindow(this);
         new WindowInteropHelper(widget).EnsureHandle();
         Hub.Updated += r =>
@@ -109,6 +111,8 @@ public partial class App : Application
         Hub.GpuId = Settings.GpuId;
         Hub.DiskId = Settings.DiskId;
         Hub.NetId = Settings.NetId;
+        Hub.CpuHot = (float)Settings.CpuHot;
+        Hub.GpuHot = (float)Settings.GpuHot;
     }
 
     // ------------------------------------------------------------------ mode simple ou complet
@@ -285,6 +289,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         tray?.Dispose();
+        Hub?.Dispose();   // fermeture de session, arrêt de Windows : les ventilateurs reviennent en automatique
         base.OnExit(e);
     }
 

@@ -38,6 +38,8 @@ public partial class MainWindow : Window
     readonly DispatcherTimer gameTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     readonly DropShadowEffect halo = new() { ShadowDepth = 0, BlurRadius = 6, Opacity = 0.6 };
     readonly TopGuard guard;
+    readonly FanPanel fans;
+    readonly Chevron fanToggle, barFanToggle;
     bool menuOpen, passThrough;
     bool gameActive, hiddenByGame;
     int gamePid;
@@ -91,6 +93,19 @@ public partial class MainWindow : Window
         Notice.Foreground = palette.Warn;
         fire = new Fire(FireLayer);
         guard = new TopGuard(this);
+
+        // ventilateurs : la flèche en haut à droite (et au bout de la barre fine) ouvre le panneau sous les jauges
+        fans = new FanPanel(palette);
+        fans.Changed += OnFanChanged;
+        FanHost.Child = fans.Root;
+        fanToggle = new Chevron(palette, ToggleFans);
+        fanToggle.Root.Margin = new Thickness(6, 0, -5, 0);
+        DockPanel.SetDock(fanToggle.Root, Dock.Right);
+        Header.Children.Insert(0, fanToggle.Root);   // le premier ancré à droite est le plus à droite
+        barFanToggle = new Chevron(palette, ToggleFans);
+        barFanToggle.Root.Margin = new Thickness(2, 0, -6, 0);
+        DockPanel.SetDock(barFanToggle.Root, Dock.Right);
+        BarLine.Children.Insert(0, barFanToggle.Root);
         Bg.SizeChanged += (_, e) => FireLayer.Clip = new RectangleGeometry(new Rect(e.NewSize), 14, 14);
         backdropTimer.Tick += (_, _) => SampleBackdrop(animate: true);
         ctrlTimer.Tick += (_, _) => UpdateClickThrough();
@@ -276,7 +291,11 @@ public partial class MainWindow : Window
         // disposition : jauges rondes, lignes et barres, ou barre fine
         Rows.Visibility = layout == AppSettings.Rows ? Visibility.Visible : Visibility.Collapsed;
         Gauges.Visibility = layout == AppSettings.Gauges ? Visibility.Visible : Visibility.Collapsed;
-        BarPanel.Visibility = layout == AppSettings.Bar ? Visibility.Visible : Visibility.Collapsed;
+        BarLine.Visibility = layout == AppSettings.Bar ? Visibility.Visible : Visibility.Collapsed;
+        barFanToggle.Root.Visibility = profile ? Visibility.Collapsed : Visibility.Visible;
+        FanHost.Visibility = s.FanPanel && !profile ? Visibility.Visible : Visibility.Collapsed;
+        fanToggle.Set(s.FanPanel);
+        barFanToggle.Set(s.FanPanel);
         Header.Visibility = profile || layout == AppSettings.Bar ? Visibility.Collapsed : Visibility.Visible;
         Body.Width = layout == AppSettings.Rows ? 218 : double.NaN;
         Body.MinWidth = layout == AppSettings.Gauges && !profile ? 150 : 0;
@@ -481,7 +500,33 @@ public partial class MainWindow : Window
         Notice.Text = notice ?? "";
         Notice.Visibility = notice == null ? Visibility.Collapsed : Visibility.Visible;
 
+        if (FanHost.Visibility == Visibility.Visible)
+            fans.Update(r.Fans, s.FanSpeeds, r.FanBoost, !app.IsAdmin && !app.Demo
+                ? L.T("Lance Temperator en administrateur pour voir et régler les ventilateurs.", "Run Temperator as administrator to see and set the fans.")
+                : null);
+
         Pulse.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.25, TimeSpan.FromMilliseconds(700)));
+    }
+
+    // ------------------------------------------------------------------ ventilateurs
+
+    void ToggleFans()
+    {
+        var s = app.Settings;
+        s.FanPanel = !s.FanPanel;
+        s.Save();
+        ApplySettings();
+        Apply(app.Last);
+    }
+
+    /// <summary>Curseur ou « AUTO » : la vitesse part tout de suite au matériel, et s'enregistre quand on relâche.</summary>
+    void OnFanChanged(string id, float? percent, bool final)
+    {
+        var s = app.Settings;
+        if (percent is float p) s.FanSpeeds[id] = Math.Clamp(Math.Round(p), AppSettings.MinFanSpeed, 100);
+        else s.FanSpeeds.Remove(id);
+        if (!app.Demo && !app.Snapshotting) app.Hub.SetFan(id, percent);
+        if (final) s.Save();
     }
 
     /// <summary>Trop chaud au-delà du seuil, et le reste jusqu'à 3 °C en dessous (pas de clignotement).</summary>

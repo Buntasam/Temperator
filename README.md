@@ -42,6 +42,9 @@ Les températures et l'utilisation de ton PC, toujours à l'écran : un petit wi
 - **Alerte Windows** quand un composant reste trop chaud plus de 30 secondes, même widget masqué.
 - **Historique** : la courbe des 5 dernières minutes au survol d'une jauge, et dans le *Plan du PC* les 10 dernières minutes,
   la dernière heure ou les 24 dernières heures (conservées après un redémarrage), avec **export CSV** pour Excel.
+- **Ventilateurs** : la petite flèche en haut à droite ouvre un panneau avec chaque ventilateur à part et un curseur
+  pour régler sa vitesse (ou **AUTO** : le BIOS décide). Jamais sous 20 %, à fond si un composant devient trop chaud,
+  et rendus au BIOS en quittant. Le réglage dépend de la carte mère (rarement possible sur un portable).
 - **Profil « Jeu »** : quand un jeu ou une vidéo passe en plein écran, le widget change tout seul de réglages
   (par défaut CPU, GPU et FPS, plus petit, fond léger, toujours devant), puis revient à son profil « Bureau ».
   Tu choisis ce qu'il affiche, sa disposition, sa taille et son fond. Il peut aussi se masquer, ou ne rien changer.
@@ -56,6 +59,7 @@ Les températures et l'utilisation de ton PC, toujours à l'écran : un petit wi
 Glisse le widget pour le déplacer, **double-clic** pour le *Plan du PC*, **clic droit** pour le menu.
 L'icône près de l'horloge le masque ou le réaffiche.
 
+<p align="center"><img src="docs/widget-ventilateurs.png" width="460" alt="Le panneau des ventilateurs, ouvert sous les jauges"></p>
 <p align="center">
   <img src="docs/widget-jauges-feu.png" width="350" alt="Trop chaud : seule la jauge du CPU brûle">
   <img src="docs/infobulle-historique.png" width="260" alt="Infobulle avec l'historique">
