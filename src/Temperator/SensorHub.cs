@@ -81,14 +81,18 @@ public sealed class SensorHub : IDisposable
         thread.Start();
     }
 
-    /// <summary>Matériel détecté (appeler sous lock(Sync)).</summary>
-    public IReadOnlyList<IHardware> Hardware => Ready ? computer.Hardware.ToList() : Array.Empty<IHardware>();
+    /// <summary>Matériel détecté, sans les cartes réseau virtuelles (appeler sous lock(Sync)).</summary>
+    public IReadOnlyList<IHardware> Hardware => Ready ? computer.Hardware.Where(h => !Ignored(h)).ToList() : Array.Empty<IHardware>();
 
     void Loop()
     {
         try
         {
-            lock (Sync) computer.Open();
+            lock (Sync)
+            {
+                computer.Open();
+                LightenNvidia(computer.Hardware);
+            }
             Ready = true;
         }
         catch (Exception ex) { App.Log(ex); }
@@ -103,8 +107,9 @@ public sealed class SensorHub : IDisposable
                     if (Ready)
                     {
                         var hw = computer.Hardware.ToList();
-                        foreach (var h in hw) Update(h);
-                        r = Read(hw, GpuId, DiskId, NetId);
+                        foreach (var h in hw)
+                            if (!Ignored(h)) Update(h);
+                        r = Read(hw, GpuId, DiskId, NetId, NvidiaWatts);
                         Fans(hw, r);
                     }
                 }
@@ -153,7 +158,8 @@ public sealed class SensorHub : IDisposable
 
     // ------------------------------------------------------------------ choix des capteurs à afficher
 
-    static Readings Read(List<IHardware> hw, string? gpuId, string? diskId, string? netId)
+    /// <param name="gpuWatts">consommation lue à part (cartes NVIDIA, voir <see cref="LightenNvidia"/>)</param>
+    static Readings Read(List<IHardware> hw, string? gpuId, string? diskId, string? netId, Func<IHardware, float?>? gpuWatts = null)
     {
         var r = new Readings { Ready = true };
 
@@ -178,7 +184,7 @@ public sealed class SensorHub : IDisposable
             r.GpuName = gpu.Name;
             r.GpuTemp = Find(gpu, SensorType.Temperature, "GPU Core", "GPU Hot Spot") ?? Max(gpu, SensorType.Temperature);
             r.GpuLoad = Find(gpu, SensorType.Load, "GPU Core", "D3D 3D") ?? Max(gpu, SensorType.Load);
-            r.GpuPower = Find(gpu, SensorType.Power, "GPU Package", "GPU Power", "GPU Board Power", "GPU Core") ?? Max(gpu, SensorType.Power);
+            r.GpuPower = Find(gpu, SensorType.Power, "GPU Package", "GPU Power", "GPU Board Power", "GPU Core") ?? Max(gpu, SensorType.Power) ?? gpuWatts?.Invoke(gpu);
         }
         if (r.CpuPower.HasValue || r.GpuPower.HasValue) r.TotalPower = (r.CpuPower ?? 0) + (r.GpuPower ?? 0);
 
@@ -251,30 +257,59 @@ public sealed class SensorHub : IDisposable
     }
 
     static readonly string[] VirtualAdapters =
-        { "virtual", "pseudo", "loopback", "miniport", "filter", "hyper-v", "vethernet", "npcap", "kernel debug", "teredo", "isatap", "6to4", "vmware", "virtualbox", "tap-", "wintun", "bluetooth" };
+        { "virtual", "pseudo", "loopback", "miniport", "filter", "hyper-v", "vethernet", "npcap", "kernel debug", "teredo", "isatap", "6to4", "vmware", "virtualbox", "tap-", "wintun", "bluetooth",
+          "qos", "packet scheduler" };
+
+    /// <summary>
+    /// Vraie carte réseau (Wi-Fi, Ethernet…) d'après son nom et sa description Windows. Exclut les cartes virtuelles
+    /// et les filtres que Windows attache à chaque carte (« Ethernet-QoS Packet Scheduler-0000 »…).
+    /// </summary>
+    internal static bool IsRealAdapter(string name, string description) =>
+        !VirtualAdapters.Any(v => description.Contains(v, StringComparison.OrdinalIgnoreCase) || name.Contains(v, StringComparison.OrdinalIgnoreCase))
+        && !System.Text.RegularExpressions.Regex.IsMatch(name, @"-\d{4}$");
 
     static HashSet<string> realAdapters = new();
     static DateTime realAdaptersAt = DateTime.MinValue;
+    /// <summary>Windows signale un changement de réseau (carte branchée, Wi-Fi activé…) : la liste est à refaire.</summary>
+    static volatile bool adaptersChanged = true;
+
+    static SensorHub()
+    {
+        try
+        {
+            System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (_, _) => adaptersChanged = true;
+            System.Net.NetworkInformation.NetworkChange.NetworkAvailabilityChanged += (_, _) => adaptersChanged = true;
+        }
+        catch { }
+    }
 
     /// <summary>
     /// Noms des vraies cartes réseau (Wi-Fi, Ethernet…), d'après Windows : la description dit si une carte est virtuelle
-    /// (« Ethernet 2 » peut être une carte VirtualBox). Recalculé chaque minute (carte branchée, Wi-Fi activé…).
+    /// (« Ethernet 2 » peut être une carte VirtualBox). Demander la liste à Windows coûte cher : on ne le fait que quand
+    /// le réseau change, et par sécurité toutes les 10 minutes.
     /// </summary>
     static HashSet<string> RealAdapters()
     {
-        if (DateTime.UtcNow - realAdaptersAt < TimeSpan.FromMinutes(1)) return realAdapters;
+        if (!adaptersChanged && DateTime.UtcNow - realAdaptersAt < TimeSpan.FromMinutes(10)) return realAdapters;
+        adaptersChanged = false;
         realAdaptersAt = DateTime.UtcNow;
         try
         {
             realAdapters = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
                 .Where(n => n.NetworkInterfaceType is not (System.Net.NetworkInformation.NetworkInterfaceType.Loopback or System.Net.NetworkInformation.NetworkInterfaceType.Tunnel)
-                            && !VirtualAdapters.Any(v => n.Description.Contains(v, StringComparison.OrdinalIgnoreCase) || n.Name.Contains(v, StringComparison.OrdinalIgnoreCase)))
+                            && IsRealAdapter(n.Name, n.Description))
                 .Select(n => n.Name)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
         catch { }
         return realAdapters;
     }
+
+    /// <summary>
+    /// Carte réseau virtuelle (filtres de Windows, VirtualBox, Hyper-V…) : Windows en déclare des dizaines par vraie carte.
+    /// Temperator ne les affiche pas, donc ne les lit pas.
+    /// </summary>
+    static bool Ignored(IHardware h) => h.HardwareType.ToString() == "Network" && !RealAdapters().Contains(h.Name);
 
     static IEnumerable<ISensor> AllSensors(IHardware h)
     {
@@ -305,6 +340,65 @@ public sealed class SensorHub : IDisposable
     {
         var values = AllSensors(h).Where(s => s.SensorType == type && Valid(s)).Select(s => s.Value!.Value).ToList();
         return values.Count > 0 ? values.Max() : null;
+    }
+
+    // ------------------------------------------------------------------ NVIDIA : sans les deux mesures qui coûtent cher
+
+    const System.Reflection.BindingFlags Private = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+    static readonly Type? Nvml = typeof(Computer).Assembly.GetType("LibreHardwareMonitor.Interop.NvidiaML");
+    static readonly System.Reflection.MethodInfo? NvmlPowerUsage = Nvml?.GetMethod("NvmlDeviceGetPowerUsage",
+        System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+    /// <summary>Accès NVML de chaque carte NVIDIA, retiré à LibreHardwareMonitor (thread capteurs).</summary>
+    readonly Dictionary<IHardware, object> nvidia = new();
+
+    /// <summary>
+    /// Une carte NVIDIA coûtait à elle seule ~10 % d'un cœur, à cause de deux valeurs que Temperator n'affiche pas :
+    /// <list type="bullet">
+    /// <item>le débit PCIe (NVML) : chaque mesure occupe le processeur 20 ms, deux fois par lecture. On retire l'accès
+    /// NVML à LibreHardwareMonitor et on lit nous-mêmes la seule valeur NVML utile, la consommation en watts ;</item>
+    /// <item>la consommation en % de l'enveloppe (NVAPI « power topology ») : ~15 ms par lecture. On retire ces capteurs,
+    /// et LibreHardwareMonitor ne les interroge plus.</item>
+    /// </list>
+    /// Températures, utilisation, fréquences, mémoire et ventilateurs restent lus normalement. Si LibreHardwareMonitor
+    /// change (champ ou méthode introuvable), la partie concernée n'est pas retirée : tout fonctionne comme avant.
+    /// </summary>
+    void LightenNvidia(IEnumerable<IHardware> hardware)
+    {
+        foreach (var h in hardware.Where(h => h.HardwareType == HardwareType.GpuNvidia))
+        {
+            try
+            {
+                var field = h.GetType().GetField("_nvmlDevice", Private);
+                if (NvmlPowerUsage != null && field?.GetValue(h) is { } device && device.GetType() == NvmlPowerUsage.GetParameters()[0].ParameterType)
+                {
+                    field.SetValue(h, null);
+                    nvidia[h] = device;
+                }
+                // occupation de chaque moteur et mémoire vues par Direct3D : NVAPI donne déjà l'utilisation (« GPU Core »)
+                h.GetType().GetField("_d3dDeviceId", Private)?.SetValue(h, null);
+            }
+            catch (Exception ex) { App.Log(ex); }
+
+            try
+            {
+                var powers = h.GetType().GetField("_powers", Private);
+                var deactivate = h.GetType().GetMethod("DeactivateSensor", Private);
+                if (powers?.GetValue(h) is ISensor?[] sensors && deactivate != null)
+                {
+                    foreach (var s in sensors) if (s != null) deactivate.Invoke(h, new object[] { s });
+                    powers.SetValue(h, null);
+                }
+            }
+            catch (Exception ex) { App.Log(ex); }
+        }
+    }
+
+    /// <summary>Consommation d'une carte NVIDIA par NVML (un appel immédiat), ou null.</summary>
+    float? NvidiaWatts(IHardware gpu)
+    {
+        if (!nvidia.TryGetValue(gpu, out var device)) return null;
+        try { return NvmlPowerUsage!.Invoke(null, new[] { device }) is int milliwatts && milliwatts > 0 ? milliwatts / 1000f : null; }
+        catch { return null; }
     }
 
     // ------------------------------------------------------------------ ventilateurs : chacun à part, et leur réglage

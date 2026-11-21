@@ -33,7 +33,8 @@ public partial class MainWindow : Window
     readonly Dictionary<string, Item> items = new();
     readonly Fire fire;
     readonly FpsCounter fps = new();
-    readonly DispatcherTimer backdropTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
+    // couleurs adaptées au fond : une capture de l'écran autour du widget par seconde (et à chaque déplacement)
+    readonly DispatcherTimer backdropTimer = new() { Interval = TimeSpan.FromMilliseconds(1000) };
     readonly DispatcherTimer ctrlTimer = new() { Interval = TimeSpan.FromMilliseconds(80) };
     readonly DispatcherTimer gameTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     readonly DropShadowEffect halo = new() { ShadowDepth = 0, BlurRadius = 6, Opacity = 0.6 };
@@ -505,7 +506,10 @@ public partial class MainWindow : Window
                 ? L.T("Lance Temperator en administrateur pour voir et régler les ventilateurs.", "Run Temperator as administrator to see and set the fans.")
                 : null);
 
-        Pulse.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.25, TimeSpan.FromMilliseconds(700)));
+        // le point qui « bat » à chaque mesure : 8 images/s suffisent pour un fondu de 6 px
+        var beat = new DoubleAnimation(1, 0.25, TimeSpan.FromMilliseconds(700));
+        Timeline.SetDesiredFrameRate(beat, 8);
+        Pulse.BeginAnimation(OpacityProperty, beat);
     }
 
     // ------------------------------------------------------------------ ventilateurs

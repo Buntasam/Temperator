@@ -22,7 +22,7 @@ Les températures et l'utilisation de ton PC, toujours à l'écran : un petit wi
   **consommation** du processeur et de la carte graphique en watts.
 - **Couleurs** : turquoise quand tout va bien, orange quand ça chauffe, rouge quand c'est trop chaud.
   La couleur d'accent se change (bleu, violet, rose, vert, orange, blanc).
-- **FPS** (images par seconde) du jeu en plein écran : jeux DirectX 9 à 12.
+- **FPS** (images par seconde) du jeu en plein écran : jeux DirectX 9 à 12 (à activer dans les réglages).
 - **Jauges rondes** (par défaut), **lignes et barres**, ou **barre fine** sur une seule ligne.
 - Tu choisis **l'ordre** des éléments, et la **carte graphique**, le **disque** et la **carte réseau** affichés.
 - **Thème sombre, clair, ou comme Windows** pour le fond opaque.
@@ -45,9 +45,9 @@ Les températures et l'utilisation de ton PC, toujours à l'écran : un petit wi
 - **Ventilateurs** : la petite flèche en haut à droite ouvre un panneau avec chaque ventilateur à part et un curseur
   pour régler sa vitesse (ou **AUTO** : le BIOS décide). Jamais sous 20 %, à fond si un composant devient trop chaud,
   et rendus au BIOS en quittant. Le réglage dépend de la carte mère (rarement possible sur un portable).
-- **Profil « Jeu »** : quand un jeu ou une vidéo passe en plein écran, le widget change tout seul de réglages
-  (par défaut CPU, GPU et FPS, plus petit, fond léger, toujours devant), puis revient à son profil « Bureau ».
-  Tu choisis ce qu'il affiche, sa disposition, sa taille et son fond. Il peut aussi se masquer, ou ne rien changer.
+- **Profil « Jeu »** (désactivé de base, *Réglages → Jeux et plein écran*) : quand un jeu ou une vidéo passe en plein écran,
+  le widget change tout seul de réglages (CPU, GPU et FPS, plus petit, fond léger, toujours devant), puis revient à son
+  profil « Bureau ». Tu choisis ce qu'il affiche, sa disposition, sa taille et son fond. Il peut aussi se masquer.
 - **Fond opaque, translucide ou absent** : en translucide et sans fond, le widget regarde l'écran autour de lui et passe en
   couleurs claires ou sombres pour rester lisible. L'**opacité du fond** se règle à part.
 - **Au-dessus de tout, quoi qu'il arrive** : il repasse devant toute fenêtre qui le recouvre.

@@ -14,6 +14,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 
 namespace Temperator;
@@ -21,6 +22,17 @@ namespace Temperator;
 public partial class App : Application
 {
     public static readonly string Version = typeof(App).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+
+    /// <summary>Images par seconde des animations (WPF en fait 60 par défaut).</summary>
+    public const int AnimationFps = 20;
+
+    static App()
+    {
+        // le widget est une fenêtre transparente : chaque image d'animation la fait entièrement redessiner et recopier
+        // par le processeur. 20 images/s restent fluides pour des jauges et coûtent 3 fois moins qu'à 60.
+        try { Timeline.DesiredFrameRateProperty.OverrideMetadata(typeof(Timeline), new FrameworkPropertyMetadata { DefaultValue = AnimationFps }); }
+        catch (Exception ex) { Log(ex); }
+    }
 
     public AppSettings Settings { get; private set; } = new();
     public SensorHub Hub { get; private set; } = null!;

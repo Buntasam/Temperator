@@ -28,7 +28,7 @@ public partial class App
         try
         {
             Directory.CreateDirectory(dir);
-            Settings = new AppSettings { ShowFan = true, Layout = AppSettings.Rows, Mode = AppSettings.Full };
+            Settings = new AppSettings { ShowFan = true, ShowFps = true, GameMode = AppSettings.GameProfile, Layout = AppSettings.Rows, Mode = AppSettings.Full };
             Hub = new SensorHub(Dispatcher);
             updater = new Updater(this);
             if (Demo) History.FillDemo();

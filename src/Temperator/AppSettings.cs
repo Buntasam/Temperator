@@ -24,8 +24,8 @@ public sealed class AppSettings
     public bool ShowNet { get; set; }
     public bool ShowBattery { get; set; } = true;
     public bool ShowPower { get; set; }
-    /// <summary>Images par seconde du jeu en plein écran (jeux DirectX).</summary>
-    public bool ShowFps { get; set; } = true;
+    /// <summary>Images par seconde du jeu en plein écran (jeux DirectX). Désactivé de base.</summary>
+    public bool ShowFps { get; set; }
 
     /// <summary>Ordre des éléments dans le widget (clés de <see cref="MetricKeys"/>).</summary>
     public List<string> Order { get; set; } = MetricKeys.All.ToList();
@@ -76,8 +76,8 @@ public sealed class AppSettings
     // ------------------------------------------------------------------ profil « Jeu » : jeu ou vidéo en plein écran
 
     public const string GameProfile = "profile", GameHide = "hide", GameOff = "off";
-    /// <summary>Plein écran : profil « Jeu », masquer, ou ne rien changer.</summary>
-    public string GameMode { get; set; } = GameProfile;
+    /// <summary>Plein écran : profil « Jeu », masquer, ou ne rien changer (de base : rien ne change).</summary>
+    public string GameMode { get; set; } = GameOff;
     /// <summary>Éléments affichés pendant un jeu.</summary>
     public List<string> GameShow { get; set; } = new() { MetricKeys.Cpu, MetricKeys.Gpu, MetricKeys.Fps };
     public double GameScale { get; set; } = 0.85;
@@ -181,7 +181,7 @@ public sealed class AppSettings
         if (GameLayout is not (null or Gauges or Rows or Bar)) GameLayout = null;
         if (Theme is not (Dark or Light or FollowWindows)) Theme = Dark;
         if (UpdateMode is not ("auto" or "notify" or "off")) UpdateMode = "auto";
-        if (GameMode is not (GameProfile or GameHide or GameOff)) GameMode = GameProfile;
+        if (GameMode is not (GameProfile or GameHide or GameOff)) GameMode = GameOff;
         if (Language is not ("auto" or "fr" or "en")) Language = "auto";
         if (Accent is null || !Regex.IsMatch(Accent, "^#[0-9A-Fa-f]{6}$")) Accent = "#4ED8C0";
 

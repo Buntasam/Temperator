@@ -129,6 +129,16 @@ public class SettingsTests
     }
 
     [Fact]
+    public void Fullscreen_features_are_off_by_default()
+    {
+        var s = new AppSettings();
+        Assert.Equal(AppSettings.GameOff, s.GameMode);
+        Assert.False(s.ShowFps);
+        Assert.Equal(AppSettings.GameOff, AppSettings.Parse("""{ "GameMode": "inconnu" }""").GameMode);
+        Assert.Equal(AppSettings.GameProfile, AppSettings.Parse("""{ "GameMode": "profile" }""").GameMode);   // un choix enregistré est gardé
+    }
+
+    [Fact]
     public void Fan_speeds_stay_between_the_minimum_and_100()
     {
         var s = AppSettings.Parse("""{ "FanSpeeds": { "/lpc/nct6798d/control/0": 5, "/lpc/nct6798d/control/1": 64.4, "/gpu/0/control/0": 250, " ": 50 } }""");
@@ -155,6 +165,20 @@ public class FanTests
         L.Init(L.English);
         Assert.Equal(en, FanPanel.Pretty(sensor));
     }
+}
+
+public class NetworkTests
+{
+    [Theory]
+    [InlineData("Ethernet", "Realtek Gaming 2.5GbE Family Controller", true)]
+    [InlineData("Wi-Fi 2", "Intel(R) Wi-Fi 6E AX211 160MHz", true)]
+    [InlineData("Ethernet-QoS Packet Scheduler-0000", "Realtek Gaming 2.5GbE Family Controller-QoS Packet Scheduler-0000", false)]
+    [InlineData("Wi-Fi-WFP Native MAC Layer LightWeight Filter-0000", "Broadcom 802.11ac Network Adapter-WFP Native MAC Layer LightWeight Filter-0000", false)]
+    [InlineData("Connexion au réseau local* 10", "Microsoft Wi-Fi Direct Virtual Adapter #2", false)]
+    [InlineData("Ethernet 2", "VirtualBox Host-Only Ethernet Adapter", false)]
+    [InlineData("vEthernet (WSL)", "Hyper-V Virtual Ethernet Adapter", false)]
+    public void Keeps_only_real_adapters(string name, string description, bool real) =>
+        Assert.Equal(real, SensorHub.IsRealAdapter(name, description));
 }
 
 public class HeatTests
